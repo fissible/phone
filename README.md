@@ -8,6 +8,11 @@ This is a pre-alpha repository. The first goal is to define the package boundary
 and build a small, dependable core before adding UI or application-specific
 integrations.
 
+## Planning
+
+- [Scope](docs/SCOPE.md)
+- [Roadmap](docs/ROADMAP.md)
+
 ## Goals
 
 - Provide Laravel-native Twilio webhook handling for SMS, MMS, voice, call
