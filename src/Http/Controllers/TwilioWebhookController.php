@@ -7,6 +7,7 @@ namespace Fissible\Phone\Http\Controllers;
 use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Services\WebhookReceiptRecorder;
 use Fissible\Phone\Sms\InboundSmsProcessor;
+use Fissible\Phone\Sms\MessageStatusProcessor;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -27,9 +28,18 @@ class TwilioWebhookController
         }
     }
 
-    public function smsStatus(Request $request, WebhookReceiptRecorder $receipts): Response
+    public function smsStatus(Request $request, WebhookReceiptRecorder $receipts, MessageStatusProcessor $processor): Response
     {
-        return $this->acknowledge($request, $receipts);
+        try {
+            $processor->processTwilio($request, $this->receipt($request));
+            $receipts->markProcessed($this->receipt($request));
+
+            return response()->noContent();
+        } catch (Throwable $exception) {
+            $receipts->markFailed($this->receipt($request), $exception);
+
+            throw $exception;
+        }
     }
 
     public function inboundVoice(Request $request, WebhookReceiptRecorder $receipts): Response

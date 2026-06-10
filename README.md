@@ -100,6 +100,13 @@ Twilio sender precedence is:
 3. explicit `from` number
 4. configured default `from` number
 
+When a Twilio status callback reaches `POST /phone/twilio/sms/status`, the
+package looks up the outbound `phone_messages` row by provider SID and applies a
+deterministic status progression. Lower-rank callbacks are ignored, terminal
+states do not regress, carrier failure details are stored on the message, and
+`Fissible\Phone\Events\MessageDeliveryUpdated` is dispatched only after the
+message update is persisted.
+
 ### Webhook foundation
 
 The package now registers stateless Twilio webhook routes under

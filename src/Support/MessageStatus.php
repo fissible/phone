@@ -44,4 +44,20 @@ final class MessageStatus
     {
         return self::RANKS[$status] ?? 0;
     }
+
+    /** @return list<string> */
+    public static function terminalStatuses(): array
+    {
+        return [
+            self::DELIVERED,
+            self::UNDELIVERED,
+            self::FAILED,
+            self::IGNORED,
+        ];
+    }
+
+    public static function isTerminal(string $status): bool
+    {
+        return in_array($status, self::terminalStatuses(), true);
+    }
 }
