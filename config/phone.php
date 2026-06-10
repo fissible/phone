@@ -28,6 +28,13 @@ return [
         'holidays' => [],
     ],
 
+    'numbers' => [
+        'create_unknown_inbound' => true,
+        'default_scope_key' => env('PHONE_DEFAULT_SCOPE_KEY', 'global'),
+        'default_scope_type' => env('PHONE_DEFAULT_SCOPE_TYPE'),
+        'default_scope_id' => env('PHONE_DEFAULT_SCOPE_ID'),
+    ],
+
     'webhooks' => [
         'base_url' => env('PHONE_WEBHOOK_BASE_URL'),
         'middleware' => ['phone.twilio'],

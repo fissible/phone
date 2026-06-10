@@ -120,6 +120,24 @@ headers, and optional payload. Invalid signatures are rejected with `403` after 
 minimal forensic receipt is written. Exact webhook retries are deduplicated by a
 request hash.
 
+Inbound SMS now creates durable records:
+
+- `phone_numbers` for local Twilio numbers
+- `phone_threads` for each local/remote SMS conversation
+- `phone_messages` for inbound SMS/MMS payloads
+
+If an inbound local number is not already configured, the default resolver
+creates it in the configured default scope:
+
+```env
+PHONE_DEFAULT_SCOPE_KEY=global
+```
+
+Pre-create `phone_numbers` rows when a host app needs tenant-specific scoping.
+Inbound webhook scope is copied from the matched local number, not from request
+context. Accepted inbound SMS/MMS webhooks dispatch
+`Fissible\Phone\Events\InboundMessageReceived` after persistence.
+
 Voice routing is not implemented yet; the inbound voice endpoint currently
 acknowledges with empty TwiML until the call router milestone lands.
 
