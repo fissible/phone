@@ -83,6 +83,46 @@ Twilio sender precedence is:
 3. explicit `from` number
 4. configured default `from` number
 
+### Webhook foundation
+
+The package now registers stateless Twilio webhook routes under
+`PHONE_ROUTE_PREFIX`, which defaults to `/phone`. The routes use only the
+`phone.twilio` middleware by default, so Twilio POSTs do not pass through
+Laravel's session or CSRF middleware.
+
+Set `PHONE_WEBHOOK_BASE_URL` in production when the app is behind a TLS
+terminating proxy:
+
+```env
+PHONE_WEBHOOK_BASE_URL=https://example.com
+TWILIO_VALIDATE_WEBHOOKS=true
+```
+
+That value is used verbatim with the incoming request path and query string
+before Twilio signature validation. This avoids the common proxy failure where
+Laravel sees an internal `http://` URL but Twilio signed the public `https://`
+URL.
+
+Initial webhook routes:
+
+- `POST /phone/twilio/sms/inbound`
+- `POST /phone/twilio/sms/status`
+- `POST /phone/twilio/voice/inbound`
+- `POST /phone/twilio/voice/dial-status`
+- `POST /phone/twilio/voice/status`
+- `POST /phone/twilio/voice/recording`
+- `POST /phone/twilio/voice/transcription`
+- `POST /phone/twilio/ai/status`
+
+Each request is stored in `phone_webhook_receipts` with the reconstructed public
+URL, signature result, request hash, provider SID, processing status, redacted
+headers, and optional payload. Invalid signatures are rejected with `403` after a
+minimal forensic receipt is written. Exact webhook retries are deduplicated by a
+request hash.
+
+Voice routing is not implemented yet; the inbound voice endpoint currently
+acknowledges with empty TwiML until the call router milestone lands.
+
 ## Early Milestones
 
 1. Twilio credentials, config, and webhook signature validation.

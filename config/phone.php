@@ -32,6 +32,7 @@ return [
         'base_url' => env('PHONE_WEBHOOK_BASE_URL'),
         'middleware' => ['phone.twilio'],
         'store_raw_payloads' => true,
+        'store_invalid_payloads' => false,
         'redact' => [],
         'replay_enabled' => true,
     ],
