@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Fissible\Phone\Events\InboundMessageReceived;
+use Fissible\Phone\Events\ThreadOptedIn;
+use Fissible\Phone\Events\ThreadOptedOut;
 use Fissible\Phone\Models\PhoneMessage;
 use Fissible\Phone\Models\PhoneNumber;
 use Fissible\Phone\Models\PhoneThread;
@@ -133,6 +135,79 @@ it('stores inbound mms media metadata', function (): void {
             ],
         ])
         ->and($message->metadata['twilio']['num_media'])->toBe(2);
+});
+
+it('marks a thread opted out when an inbound stop keyword is received', function (): void {
+    Event::fake([
+        InboundMessageReceived::class,
+        ThreadOptedOut::class,
+    ]);
+
+    $payload = inboundSmsPayload([
+        'MessageSid' => 'SM'.str_repeat('5', 32),
+        'Body' => ' stop ',
+    ]);
+
+    $this->post('/phone/twilio/sms/inbound', $payload)->assertNoContent();
+
+    $thread = PhoneThread::query()->sole();
+    $message = PhoneMessage::query()->sole();
+
+    expect($thread->opted_out_at?->toDateTimeString())->toBe('2026-06-10 10:15:00')
+        ->and($thread->metadata['opt_out']['action'])->toBe('opt_out')
+        ->and($thread->metadata['opt_out']['keyword'])->toBe('STOP')
+        ->and($thread->metadata['opt_out']['message_id'])->toBe($message->id)
+        ->and($thread->metadata['opt_out']['message_sid'])->toBe($payload['MessageSid']);
+
+    Event::assertDispatched(ThreadOptedOut::class, function (ThreadOptedOut $event) use ($thread, $message): bool {
+        return $event->thread->is($thread)
+            && $event->message->is($message)
+            && $event->keyword === 'STOP';
+    });
+
+    Event::assertDispatched(InboundMessageReceived::class);
+});
+
+it('clears thread opt-out when an inbound start keyword is received', function (): void {
+    Event::fake([ThreadOptedIn::class]);
+
+    $number = PhoneNumber::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'provider_account_sid' => 'AC'.str_repeat('9', 32),
+        'phone_number' => '+16615550100',
+        'status' => 'active',
+    ]);
+
+    $thread = PhoneThread::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'phone_number_id' => $number->id,
+        'local_number' => '+16615550100',
+        'remote_number' => '+16615551212',
+        'opted_out_at' => Carbon::parse('2026-06-09 08:00:00'),
+    ]);
+
+    $payload = inboundSmsPayload([
+        'MessageSid' => 'SM'.str_repeat('6', 32),
+        'Body' => 'START',
+    ]);
+
+    $this->post('/phone/twilio/sms/inbound', $payload)->assertNoContent();
+
+    $thread->refresh();
+    $message = PhoneMessage::query()->sole();
+
+    expect($thread->opted_out_at)->toBeNull()
+        ->and($thread->metadata['opt_out']['action'])->toBe('opt_in')
+        ->and($thread->metadata['opt_out']['keyword'])->toBe('START')
+        ->and($thread->metadata['opt_out']['message_id'])->toBe($message->id);
+
+    Event::assertDispatched(ThreadOptedIn::class, function (ThreadOptedIn $event) use ($thread, $message): bool {
+        return $event->thread->is($thread)
+            && $event->message->is($message)
+            && $event->keyword === 'START';
+    });
 });
 
 /** @param  array<string, string>  $overrides */

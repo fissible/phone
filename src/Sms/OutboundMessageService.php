@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Phone\Sms;
 
 use DateTimeInterface;
+use Fissible\Phone\Contracts\MessagePolicy;
 use Fissible\Phone\Contracts\ScopeResolver;
 use Fissible\Phone\Events\OutboundMessageQueued;
 use Fissible\Phone\Exceptions\PhoneMessageException;
@@ -24,6 +25,7 @@ class OutboundMessageService
     public function __construct(
         private readonly Repository $config,
         private readonly ScopeResolver $scopeResolver,
+        private readonly MessagePolicy $messagePolicy,
         private readonly Dispatcher $bus,
         private readonly EventDispatcher $events,
     ) {}
@@ -61,12 +63,22 @@ class OutboundMessageService
         $record = DB::transaction(function () use ($message, $scope, $from, $messagingServiceSid, $statusCallbackUrl, $queuedAt): PhoneMessage {
             $phoneNumber = $this->resolveLocalNumber($from, $scope->key, $scope->type, $scope->id);
             $thread = $phoneNumber instanceof PhoneNumber
-                ? $this->resolveThread($phoneNumber, $message->to, $queuedAt)
-                : null;
+                ? $this->findThread($phoneNumber, $message->to)
+                : $this->findThreadForScope($scope->key, $message->to);
 
-            $scopeKey = $phoneNumber?->scope_key ?? $scope->key;
-            $scopeType = $phoneNumber?->scope_type ?? $scope->type;
-            $scopeId = $phoneNumber?->scope_id ?? $scope->id;
+            $this->messagePolicy->assertCanSend($message, $phoneNumber, $thread);
+
+            if ($phoneNumber instanceof PhoneNumber) {
+                $thread ??= $this->createThread($phoneNumber, $message->to);
+            }
+
+            if ($thread instanceof PhoneThread) {
+                $this->touchThreadForOutbound($thread, $queuedAt);
+            }
+
+            $scopeKey = $thread?->scope_key ?? $phoneNumber?->scope_key ?? $scope->key;
+            $scopeType = $thread?->scope_type ?? $phoneNumber?->scope_type ?? $scope->type;
+            $scopeId = $thread?->scope_id ?? $phoneNumber?->scope_id ?? $scope->id;
 
             return PhoneMessage::query()->create([
                 'scope_key' => $scopeKey,
@@ -74,7 +86,7 @@ class OutboundMessageService
                 'scope_id' => $scopeId,
                 'provider' => 'twilio',
                 'phone_thread_id' => $thread?->getKey(),
-                'phone_number_id' => $phoneNumber?->getKey(),
+                'phone_number_id' => $phoneNumber?->getKey() ?? $thread?->phone_number_id,
                 'direction' => 'outbound',
                 'from_number' => $from,
                 'to_number' => $message->to,
@@ -139,14 +151,54 @@ class OutboundMessageService
         ]);
     }
 
-    private function resolveThread(PhoneNumber $phoneNumber, string $remoteNumber, DateTimeInterface $queuedAt): PhoneThread
+    private function findThread(PhoneNumber $phoneNumber, string $remoteNumber): ?PhoneThread
+    {
+        /** @var PhoneThread|null $thread */
+        $thread = PhoneThread::query()
+            ->where('scope_key', $phoneNumber->scope_key)
+            ->where('phone_number_id', $phoneNumber->getKey())
+            ->where('remote_number', $remoteNumber)
+            ->first();
+
+        return $thread;
+    }
+
+    private function findThreadForScope(string $scopeKey, string $remoteNumber): ?PhoneThread
+    {
+        /** @var PhoneThread|null $optedOutThread */
+        $optedOutThread = PhoneThread::query()
+            ->where('scope_key', $scopeKey)
+            ->where('remote_number', $remoteNumber)
+            ->whereNotNull('opted_out_at')
+            ->first();
+
+        if ($optedOutThread instanceof PhoneThread) {
+            return $optedOutThread;
+        }
+
+        $threads = PhoneThread::query()
+            ->where('scope_key', $scopeKey)
+            ->where('remote_number', $remoteNumber)
+            ->limit(2)
+            ->get();
+
+        if ($threads->count() !== 1) {
+            return null;
+        }
+
+        /** @var PhoneThread $thread */
+        $thread = $threads->first();
+
+        return $thread;
+    }
+
+    private function createThread(PhoneNumber $phoneNumber, string $remoteNumber): PhoneThread
     {
         /** @var PhoneThread $thread */
-        $thread = PhoneThread::query()->firstOrCreate([
+        $thread = PhoneThread::query()->create([
             'scope_key' => $phoneNumber->scope_key,
             'phone_number_id' => $phoneNumber->getKey(),
             'remote_number' => $remoteNumber,
-        ], [
             'scope_type' => $phoneNumber->scope_type,
             'scope_id' => $phoneNumber->scope_id,
             'provider' => 'twilio',
@@ -154,6 +206,11 @@ class OutboundMessageService
             'metadata' => [],
         ]);
 
+        return $thread;
+    }
+
+    private function touchThreadForOutbound(PhoneThread $thread, DateTimeInterface $queuedAt): void
+    {
         PhoneThread::query()
             ->whereKey($thread->getKey())
             ->update([
@@ -161,8 +218,6 @@ class OutboundMessageService
                 'last_outbound_message_at' => $queuedAt,
                 'updated_at' => $queuedAt,
             ]);
-
-        return $thread;
     }
 
     private function defaultStatusCallbackUrl(): ?string

@@ -87,6 +87,17 @@ class PendingOutboundMessage
         return $this;
     }
 
+    public function allowUnknownRecipient(bool $allowed = true): self
+    {
+        $this->metadata = array_replace_recursive($this->metadata, [
+            'policy' => [
+                'allow_unknown_recipient' => $allowed,
+            ],
+        ]);
+
+        return $this;
+    }
+
     public function send(): PhoneMessage
     {
         return $this->messages->send($this->outboundMessage());

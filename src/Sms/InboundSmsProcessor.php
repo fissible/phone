@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Fissible\Phone\Sms;
 
 use DateTimeInterface;
+use Fissible\Phone\Contracts\OptOutPolicy;
 use Fissible\Phone\Contracts\PhoneNumberResolver;
 use Fissible\Phone\Events\InboundMessageReceived;
+use Fissible\Phone\Events\ThreadOptedIn;
+use Fissible\Phone\Events\ThreadOptedOut;
 use Fissible\Phone\Models\PhoneMessage;
 use Fissible\Phone\Models\PhoneThread;
 use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Services\SmsThreadResolver;
 use Fissible\Phone\Twilio\TwilioInboundSmsPayload;
+use Fissible\Phone\ValueObjects\OptOutResult;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +25,7 @@ class InboundSmsProcessor
     public function __construct(
         private readonly PhoneNumberResolver $phoneNumbers,
         private readonly SmsThreadResolver $threads,
+        private readonly OptOutPolicy $optOutPolicy,
         private readonly Dispatcher $events,
     ) {}
 
@@ -28,9 +33,10 @@ class InboundSmsProcessor
     {
         $payload = TwilioInboundSmsPayload::fromRequest($request);
         $created = false;
+        $optOutResult = null;
 
         /** @var PhoneMessage $message */
-        $message = DB::transaction(function () use ($payload, $receipt, &$created): PhoneMessage {
+        $message = DB::transaction(function () use ($payload, $receipt, &$created, &$optOutResult): PhoneMessage {
             $phoneNumber = $this->phoneNumbers->resolveForInbound($payload->to, $payload->accountSid);
             $thread = $this->threads->resolveInbound($phoneNumber, $payload);
 
@@ -69,6 +75,7 @@ class InboundSmsProcessor
             ]);
 
             $this->touchThreadForInbound($thread, $receivedAt);
+            $optOutResult = $this->optOutPolicy->applyInbound($thread, $message);
 
             return $message;
         });
@@ -77,6 +84,8 @@ class InboundSmsProcessor
             $message->refresh();
             $thread = $message->thread()->firstOrFail();
             $phoneNumber = $message->phoneNumber()->firstOrFail();
+
+            $this->dispatchOptOutEvent($optOutResult, $thread, $message);
 
             $this->events->dispatch(new InboundMessageReceived(
                 message: $message,
@@ -87,6 +96,19 @@ class InboundSmsProcessor
         }
 
         return $message;
+    }
+
+    private function dispatchOptOutEvent(?OptOutResult $result, PhoneThread $thread, PhoneMessage $message): void
+    {
+        if ($result?->isOptOut()) {
+            $this->events->dispatch(new ThreadOptedOut($thread, $message, $result->keyword));
+
+            return;
+        }
+
+        if ($result?->isOptIn()) {
+            $this->events->dispatch(new ThreadOptedIn($thread, $message, $result->keyword));
+        }
     }
 
     private function touchThreadForInbound(PhoneThread $thread, DateTimeInterface $receivedAt): void

@@ -60,6 +60,7 @@ use Fissible\Phone\Facades\Phone;
 Phone::messages()
     ->to('+16615551212')
     ->body("We're on for this morning.")
+    ->allowUnknownRecipient()
     ->send();
 ```
 
@@ -71,6 +72,7 @@ persist the message and dispatch the send job through Laravel's bus:
 Phone::messages()
     ->to('+16615551212')
     ->body('Crew is on site.')
+    ->allowUnknownRecipient()
     ->queue();
 ```
 
@@ -82,6 +84,7 @@ $fake = Phone::fake();
 Phone::messages()
     ->to('+16615551212')
     ->body('Crew is on site.')
+    ->allowUnknownRecipient()
     ->send();
 
 $fake->messages();
@@ -99,6 +102,18 @@ Twilio sender precedence is:
 2. configured default Messaging Service SID
 3. explicit `from` number
 4. configured default `from` number
+
+By default, outbound SMS is blocked unless the recipient already has a
+`phone_threads` record for the selected local number. This keeps automated sends
+from accidentally texting an unresolved number. A host app can deliberately opt
+in per send with `allowUnknownRecipient()` or globally:
+
+```env
+PHONE_SMS_ALLOW_UNKNOWN_RECIPIENTS=true
+```
+
+Existing threads with `opted_out_at` set are always blocked by the default
+message policy.
 
 When a Twilio status callback reaches `POST /phone/twilio/sms/status`, the
 package looks up the outbound `phone_messages` row by provider SID and applies a
@@ -161,6 +176,10 @@ Pre-create `phone_numbers` rows when a host app needs tenant-specific scoping.
 Inbound webhook scope is copied from the matched local number, not from request
 context. Accepted inbound SMS/MMS webhooks dispatch
 `Fissible\Phone\Events\InboundMessageReceived` after persistence.
+
+Inbound STOP-style keywords set `phone_threads.opted_out_at`; START-style
+keywords clear it. The default keyword lists are US SMS-oriented and can be
+replaced by binding your own `Fissible\Phone\Contracts\OptOutPolicy`.
 
 Voice routing is not implemented yet; the inbound voice endpoint currently
 acknowledges with empty TwiML until the call router milestone lands.

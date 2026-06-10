@@ -11,6 +11,10 @@ use Fissible\Phone\Twilio\TwilioClientFactory;
 use Fissible\Phone\Twilio\TwilioPhoneProvider;
 use Fissible\Phone\ValueObjects\OutboundMessage;
 
+beforeEach(function (): void {
+    config()->set('phone.sms.allow_unknown_recipients', true);
+});
+
 it('binds the phone manager and twilio provider', function (): void {
     expect(app(PhoneManager::class))->toBeInstanceOf(PhoneManager::class)
         ->and(app('phone'))->toBeInstanceOf(PhoneManager::class)

@@ -6,6 +6,7 @@ use Fissible\Phone\Contracts\PhoneProvider;
 use Fissible\Phone\Events\OutboundMessageFailed;
 use Fissible\Phone\Events\OutboundMessageQueued;
 use Fissible\Phone\Events\OutboundMessageSent;
+use Fissible\Phone\Exceptions\PhoneMessageException;
 use Fissible\Phone\Facades\Phone;
 use Fissible\Phone\Jobs\SendOutboundMessage;
 use Fissible\Phone\Models\PhoneMessage;
@@ -22,6 +23,7 @@ beforeEach(function (): void {
     Carbon::setTestNow(Carbon::parse('2026-06-10 11:30:00'));
     config()->set('phone.twilio.default_from', '+16615550100');
     config()->set('phone.twilio.messaging_service_sid', null);
+    config()->set('phone.sms.allow_unknown_recipients', true);
     config()->set('phone.webhooks.base_url', 'https://example.com');
 });
 
@@ -164,4 +166,123 @@ it('marks unexpected provider failures as send_unknown without throwing', functi
         ->and($message->metadata['send_unknown']['exception'])->toBe(RuntimeException::class);
 
     Event::assertDispatched(OutboundMessageFailed::class, fn (OutboundMessageFailed $event): bool => $event->message->is($message));
+});
+
+it('blocks unknown recipients by default', function (): void {
+    config()->set('phone.sms.allow_unknown_recipients', false);
+    $fake = Phone::fake();
+
+    expect(fn (): PhoneMessage => Phone::messages()
+        ->to('+16615551212')
+        ->body('Blocked unknown recipient.')
+        ->send()
+    )->toThrow(PhoneMessageException::class, 'recipient is unknown');
+
+    expect(PhoneMessage::query()->count())->toBe(0)
+        ->and(PhoneThread::query()->count())->toBe(0)
+        ->and($fake->messages())->toHaveCount(0);
+});
+
+it('allows unknown recipients when explicitly requested on the outbound message', function (): void {
+    config()->set('phone.sms.allow_unknown_recipients', false);
+    $fake = Phone::fake();
+
+    $message = Phone::messages()
+        ->to('+16615551212')
+        ->body('Explicit unknown send.')
+        ->allowUnknownRecipient()
+        ->send();
+
+    expect($message->status)->toBe('sent')
+        ->and($message->metadata['policy']['allow_unknown_recipient'])->toBeTrue()
+        ->and($fake->messages())->toHaveCount(1);
+});
+
+it('allows outbound messages to an existing non opted-out thread when unknown sends are disabled', function (): void {
+    config()->set('phone.sms.allow_unknown_recipients', false);
+    $fake = Phone::fake();
+
+    $number = PhoneNumber::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'phone_number' => '+16615550100',
+        'status' => 'active',
+    ]);
+
+    PhoneThread::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'phone_number_id' => $number->id,
+        'local_number' => '+16615550100',
+        'remote_number' => '+16615551212',
+    ]);
+
+    $message = Phone::messages()
+        ->to('+16615551212')
+        ->body('Known recipient.')
+        ->send();
+
+    expect($message->status)->toBe('sent')
+        ->and($fake->messages())->toHaveCount(1);
+});
+
+it('blocks outbound messages to opted-out threads', function (): void {
+    $fake = Phone::fake();
+
+    $number = PhoneNumber::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'phone_number' => '+16615550100',
+        'status' => 'active',
+    ]);
+
+    PhoneThread::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'phone_number_id' => $number->id,
+        'local_number' => '+16615550100',
+        'remote_number' => '+16615551212',
+        'opted_out_at' => now(),
+    ]);
+
+    expect(fn (): PhoneMessage => Phone::messages()
+        ->to('+16615551212')
+        ->body('Blocked opted-out recipient.')
+        ->send()
+    )->toThrow(PhoneMessageException::class, 'thread is opted out');
+
+    expect(PhoneMessage::query()->count())->toBe(0)
+        ->and($fake->messages())->toHaveCount(0);
+});
+
+it('blocks messaging-service sends when an opted-out thread exists for the recipient', function (): void {
+    config()->set('phone.twilio.default_from', null);
+    config()->set('phone.twilio.messaging_service_sid', 'MG'.str_repeat('2', 32));
+    config()->set('phone.sms.allow_unknown_recipients', true);
+    $fake = Phone::fake();
+
+    $number = PhoneNumber::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'phone_number' => '+16615550100',
+        'status' => 'active',
+    ]);
+
+    PhoneThread::query()->create([
+        'scope_key' => 'global',
+        'provider' => 'twilio',
+        'phone_number_id' => $number->id,
+        'local_number' => '+16615550100',
+        'remote_number' => '+16615551212',
+        'opted_out_at' => now(),
+    ]);
+
+    expect(fn (): PhoneMessage => Phone::messages()
+        ->to('+16615551212')
+        ->body('Blocked opted-out recipient.')
+        ->send()
+    )->toThrow(PhoneMessageException::class, 'thread is opted out');
+
+    expect(PhoneMessage::query()->count())->toBe(0)
+        ->and($fake->messages())->toHaveCount(0);
 });

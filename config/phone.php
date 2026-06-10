@@ -15,6 +15,15 @@ return [
         'validate_webhooks' => env('TWILIO_VALIDATE_WEBHOOKS', true),
     ],
 
+    'sms' => [
+        'allow_unknown_recipients' => env('PHONE_SMS_ALLOW_UNKNOWN_RECIPIENTS', false),
+        'opt_out' => [
+            'enabled' => env('PHONE_SMS_OPT_OUT_ENABLED', true),
+            'stop_keywords' => ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'],
+            'start_keywords' => ['START', 'YES', 'UNSTOP'],
+        ],
+    ],
+
     'default_voice' => [
         'mode' => 'forward',
         'forward_to' => env('PHONE_FORWARD_TO'),

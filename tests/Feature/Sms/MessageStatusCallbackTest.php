@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Event;
 beforeEach(function (): void {
     config()->set('phone.twilio.validate_webhooks', false);
     config()->set('phone.twilio.default_from', '+16615550100');
+    config()->set('phone.sms.allow_unknown_recipients', true);
     Phone::fake();
     Carbon::setTestNow(Carbon::parse('2026-06-10 13:00:00'));
 });
