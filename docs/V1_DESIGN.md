@@ -91,7 +91,9 @@ that the host app can use for notification or automation.
 
 Application code sends an SMS through the package. The package persists an
 outbound message, queues the provider send, stores the Twilio SID, and updates
-delivery status from callbacks.
+delivery status from callbacks. Send jobs must be idempotent at the application
+row level so queue retries do not double-text the recipient after Twilio has
+already accepted a message.
 
 ### UC3 - Forward Calls
 
@@ -187,6 +189,10 @@ Runtime:
 - `illuminate/queue`: same supported range as Laravel components
 - `twilio/sdk`: `^8.0`
 
+The CI matrix should test only Laravel versions that are installable at release
+time. Future version constraints may be declared ahead of a release, but they do
+not count as a release gate until the dependency is available to CI.
+
 Development:
 
 - `orchestra/testbench`
@@ -228,6 +234,8 @@ return [
     ],
 
     'webhooks' => [
+        'base_url' => env('PHONE_WEBHOOK_BASE_URL'),
+        'middleware' => ['phone.twilio'],
         'store_raw_payloads' => true,
         'redact' => [],
         'replay_enabled' => true,
@@ -241,6 +249,17 @@ return [
 ```
 
 Config must be usable without publishing. Published config is for customization.
+
+`webhooks.base_url` is required for reliable production signature validation
+behind TLS-terminating proxies. When set, the package must validate Twilio
+signatures against that public URL plus the route path and query string, not the
+internal URL observed by the Laravel request. Example:
+`https://example.com`.
+
+Apps should still configure Laravel trusted proxies correctly, but webhook
+signature validation must not depend on proxy headers being perfect.
+Generated callback URLs for outbound SMS status, `<Dial>` actions, recordings,
+and AI status should also use this base URL when configured.
 
 ## Public API Sketch
 
@@ -287,9 +306,18 @@ registration.
 
 Route middleware:
 
-- `web` or API-safe middleware chosen by package config.
-- Twilio signature validation middleware.
+- dedicated stateless package middleware, default `phone.twilio`
+- no session middleware
+- no CSRF middleware
+- Twilio signature validation and receipt middleware
 - Optional app-provided middleware.
+
+Twilio routes must not be registered in Laravel's default `web` middleware group
+unless the host app explicitly excludes these routes from CSRF verification.
+The package default should be stateless so a standard Twilio POST cannot fail
+with a `419` CSRF response.
+If a host app overrides route middleware, the package docs must warn that adding
+session or CSRF middleware is unsupported for Twilio webhook routes.
 
 ## Database Design
 
@@ -312,6 +340,11 @@ Scope columns allow a multi-tenant app to isolate records without making the
 package depend on tenant models. `scope_key` is the non-null value used for
 indexes and uniqueness; `scope_type` and `scope_id` are descriptive metadata for
 host app integrations.
+
+Provider SID unique indexes should be plain composite unique indexes. Do not use
+filtered or partial `WHERE NOT NULL` indexes in package migrations; MySQL does
+not support them, and the supported database engines allow multiple NULL values
+in a unique composite index while still enforcing uniqueness for real SIDs.
 
 ### `phone_numbers`
 
@@ -384,6 +417,7 @@ Key columns:
 - `media` JSON nullable
 - `num_segments` unsigned integer nullable
 - `status` string
+- `status_rank` unsigned integer default `0`
 - `error_code` nullable string
 - `error_message` nullable string
 - `queued_at` nullable timestamp
@@ -394,7 +428,7 @@ Key columns:
 
 Indexes:
 
-- unique on `provider`, `provider_message_sid` where not null
+- unique on `provider`, `provider_message_sid`
 - index on `phone_thread_id`, `created_at`
 - index on `status`
 
@@ -408,10 +442,12 @@ Key columns:
 - `provider_call_sid` nullable string
 - `provider_parent_call_sid` nullable string
 - `provider_account_sid` nullable string
+- `provider_sequence_number` nullable integer
 - `direction` string: `inbound`, `outbound`
 - `from_number` string
 - `to_number` string
 - `status` string
+- `status_rank` unsigned integer default `0`
 - `routing_mode` nullable string
 - `route_decision` JSON nullable
 - `answered_by` nullable string
@@ -422,7 +458,7 @@ Key columns:
 
 Indexes:
 
-- unique on `provider`, `provider_call_sid` where not null
+- unique on `provider`, `provider_call_sid`
 - index on `phone_number_id`, `created_at`
 - index on `status`
 
@@ -435,6 +471,7 @@ Key columns:
 - `phone_call_id` foreign key nullable
 - `provider_recording_sid` nullable string
 - `provider_call_sid` nullable string
+- `purpose` string nullable: `voicemail`, `call_recording`, `qa`, `unknown`
 - `status` string
 - `recording_url` nullable string
 - `duration_seconds` nullable integer
@@ -445,7 +482,7 @@ Key columns:
 
 Indexes:
 
-- unique on `provider`, `provider_recording_sid` where not null
+- unique on `provider`, `provider_recording_sid`
 - index on `provider_call_sid`
 
 ### `phone_voicemails`
@@ -481,6 +518,7 @@ Key columns:
 - `provider_sid` nullable string
 - `request_method` string
 - `request_url` text
+- `source_ip` nullable string
 - `signature_valid` boolean
 - `headers` JSON nullable
 - `payload` JSON nullable
@@ -530,6 +568,7 @@ Internal statuses:
 - `draft`
 - `queued`
 - `sending`
+- `send_unknown`
 - `sent`
 - `delivered`
 - `undelivered`
@@ -542,8 +581,9 @@ Rules:
 - Inbound messages are stored as `received`.
 - Outbound messages start as `queued`.
 - Twilio status callbacks update outbound messages.
-- Callbacks may arrive out of order. Updates must not regress from a terminal
-  state unless the provider payload is explicitly newer.
+- Message callbacks may arrive out of order and do not provide a reliable
+  sequence number. Updates must use a deterministic status precedence rule and
+  atomic writes.
 
 Terminal statuses:
 
@@ -551,6 +591,21 @@ Terminal statuses:
 - `undelivered`
 - `failed`
 - `ignored`
+
+Recommended outbound precedence:
+
+1. `draft`
+2. `queued`
+3. `sending`
+4. `send_unknown`
+5. `sent`
+6. `delivered`
+7. terminal failure: `undelivered`, `failed`, `ignored`
+
+Status callback processors must update records conditionally so stale callbacks
+cannot regress status. A typical implementation is an atomic update that only
+applies when the new rank is greater than the current rank and the current
+status is not terminal, except terminal statuses may set final error metadata.
 
 ### Call Status
 
@@ -572,6 +627,10 @@ Rules:
 - Dial status callback updates route outcome.
 - Call status callback updates provider lifecycle.
 - Package should preserve raw provider status in metadata.
+- When Twilio supplies a callback sequence number, store it and ignore older
+  sequence numbers. If no sequence number is available, apply a conservative
+  status precedence rule and never overwrite terminal call metadata with an
+  older-looking callback.
 
 ### Voicemail Status
 
@@ -589,13 +648,26 @@ All Twilio webhooks must follow this sequence:
 1. Build the exact public URL used for signature validation.
 2. Validate `X-Twilio-Signature` unless disabled for local/test environments.
 3. Store a `phone_webhook_receipts` record.
-4. Detect duplicate payloads.
-5. Normalize the payload to a typed object.
-6. Process idempotently.
-7. Dispatch domain events only after persistence succeeds.
-8. Return a Twilio-compatible response quickly.
+4. Reject invalid signatures after storing a minimal forensic receipt.
+5. Detect duplicate payloads.
+6. Normalize the payload to a typed object.
+7. Process idempotently.
+8. Dispatch domain events only after persistence succeeds.
+9. Return a Twilio-compatible response quickly.
 
 Long work should be queued. Voice webhooks must return TwiML synchronously.
+
+Public URL construction must prefer `phone.webhooks.base_url` when configured.
+The validator should combine that base URL with the route path and query string
+from the current request. This avoids false signature failures when Laravel sees
+an internal host or `http` scheme behind a proxy but Twilio signed the public
+`https` URL.
+
+Invalid-signature receipts should store only minimal metadata by default:
+provider, event type if known, request URL, payload hash, source IP if
+available, headers after redaction, `signature_valid=false`, and
+`processing_status=ignored`. They should not dispatch domain events or be
+replayable.
 
 ## Twilio Provider Requirements
 
@@ -623,7 +695,8 @@ debugging.
    `To`, `Body`, `NumMedia`, and media URLs.
 5. Number resolver finds or creates the local `phone_numbers` record if
    configured to do so.
-6. Scope resolver determines scope.
+6. Inbound scope is taken from the matched phone number's `scope_key`; request
+   context must not be used to infer tenant/scope for webhooks.
 7. Thread resolver finds or creates the thread.
 8. Contact resolver enriches thread identity.
 9. Message is stored as `received`.
@@ -636,24 +709,46 @@ debugging.
 1. Application calls the message service.
 2. Message is validated against opt-out and number policy.
 3. `phone_messages` row is created as `queued`.
-4. `SendOutboundMessage` job sends through Twilio.
-5. Twilio SID is saved.
-6. Message transitions to `sent` or `failed`.
-7. Status callback updates final delivery state.
+4. `SendOutboundMessage` atomically claims the row by moving it from `queued` to
+   `sending`.
+5. Before calling Twilio, the job reloads the row and exits if a
+   `provider_message_sid` already exists or the status is no longer sendable.
+6. The job sends through Twilio using the configured Messaging Service when
+   available.
+7. Twilio SID is saved.
+8. Message transitions to `sent` or `failed`.
+9. Status callback updates final delivery state.
+
+Twilio message creation should be treated as non-idempotent. If the provider
+request times out or fails after the HTTP request may have reached Twilio, the
+job must not blindly retry and risk a duplicate text. Mark the message
+`send_unknown`, dispatch an operational event, and require callback recovery,
+manual replay, or an explicit force retry.
 
 ### Outbound API Requirements
 
 The outbound API must support:
 
+- messaging service SID as the preferred sender path
 - explicit `from` number
 - default `from` number
-- messaging service SID
 - body
 - media URLs
 - metadata
 - synchronous send
 - queued send
 - status callback URL generation
+
+Sender precedence:
+
+1. explicit messaging service SID
+2. configured default messaging service SID
+3. explicit `from` number
+4. configured default `from` number
+
+The docs should recommend Messaging Services for A2P/10DLC usage because the
+campaign, sender pool, sticky-sender behavior, and delivery callbacks are managed
+there.
 
 ## Voice Design
 
@@ -665,11 +760,18 @@ The outbound API must support:
 4. Controller normalizes `CallSid`, `AccountSid`, `From`, `To`, and call
    status fields.
 5. Number resolver finds local number.
-6. Scope resolver determines scope.
+6. Inbound scope is taken from the matched phone number's `scope_key`.
 7. Call is created or updated.
 8. Call router returns a route decision.
 9. Decision is persisted on the call.
 10. TwiML response is returned.
+
+The inbound voice path is latency-sensitive because Twilio is waiting for TwiML.
+It must avoid slow or external I/O. Number lookup, route lookup, call
+persistence, and TwiML generation should be DB-only and bounded. Contact
+enrichment, CRM writes, notifications, AI preparation beyond choosing a
+preconfigured handoff URL, and other slow work must be deferred to events/jobs
+after TwiML is returned.
 
 ### Route Decision Types
 
@@ -689,7 +791,13 @@ voicemail after `busy`, `failed`, or `no-answer`.
 
 The `<Record>` response should include `recordingStatusCallback`. When Twilio
 reports that a recording is available, the package creates or updates a
-recording and voicemail record.
+recording record. It creates a voicemail only when the recording purpose is
+`voicemail`.
+
+The recording purpose must be threaded through the recording callback, either as
+a callback query parameter generated by the route decision or as metadata
+derived from the persisted call route decision. A forwarded-call QA recording
+must not become a voicemail by accident.
 
 ## Routing Design
 
@@ -709,6 +817,10 @@ Default router behavior:
   after-hours mode.
 - If open and `forward_to` is configured, forward.
 - Otherwise route to voicemail.
+
+The default router must be safe for the synchronous voice webhook path. It should
+read only local configuration/model data and must not perform external HTTP
+calls. Custom routers should document the same expectation.
 
 ### Business Hours
 
@@ -733,7 +845,8 @@ Included in core:
 - `phone_ai_sessions` model
 - `AiSessionHandler` contract
 - events for AI session started, updated, ended, and failed
-- documentation for how an app or companion package supplies the WebSocket URL
+- documentation for how an app or companion package supplies Conversation Relay
+  settings
 
 Not included in core:
 
@@ -746,13 +859,29 @@ Not included in core:
 The base package should own call routing and persistence. A companion package or
 host app should own the realtime AI runtime.
 
+`AiSessionHandler` should be able to provide the full Conversation Relay
+attribute set required by the TwiML builder, not only a WebSocket URL. At
+minimum this includes:
+
+- WebSocket URL
+- voice
+- language
+- welcome greeting
+- interruption/barge-in behavior when supported
+- provider/session metadata
+- optional authentication material or signed connection parameters
+
 ## Contracts
 
 ### `ScopeResolver`
 
-Returns the current package scope.
+Returns the current package scope for outbound or app-initiated operations.
 
 Default: returns the `global` scope key with null type/id metadata.
+
+Inbound webhook scope must come from the matched `PhoneNumber` record, not this
+resolver. Webhooks have no authenticated user/session context, and the `To`
+number is the stable routing signal.
 
 ### `PhoneNumberResolver`
 
@@ -851,6 +980,16 @@ Operations:
 
 Voice TwiML generation should not depend on queued jobs.
 
+`SendOutboundMessage` requirements:
+
+- claim a queued row atomically before calling Twilio
+- exit without sending if `provider_message_sid` is already present
+- exit without sending if the status is not sendable
+- save the provider SID immediately after a successful provider response
+- avoid automatic retries after uncertain provider timeouts
+- mark uncertain sends as `send_unknown` for operator review or callback
+  reconciliation
+
 ## Console Commands
 
 ### `phone:install`
@@ -868,6 +1007,12 @@ Checks:
 - queue connection is configured
 - database tables exist
 
+Optional flag: `--live`.
+
+With `--live`, the command may make a single Twilio API request to verify that
+credentials work. The default command must remain offline-safe and should not
+contact Twilio.
+
 ### `phone:webhook:replay {receipt}`
 
 Reprocesses a failed webhook receipt.
@@ -880,11 +1025,14 @@ Prunes old webhook receipts and raw payloads based on retention config.
 
 - Validate Twilio signatures by default.
 - Never disable validation in production unless the host app explicitly opts in.
+- Validate signatures against the configured public webhook base URL when set.
+- Store minimal rejected-request receipts for invalid signatures.
+- Register Twilio webhook routes in a stateless, CSRF-free middleware group.
 - Avoid logging auth tokens.
 - Store raw payloads only when configured.
 - Provide payload redaction hooks.
 - Store media URLs but do not download media by default in v1.
-- Document Twilio media authentication recommendations.
+- Document Twilio media authentication and retention implications.
 - Keep webhook replay permission to console/app code only.
 
 ## Compliance Requirements
@@ -897,6 +1045,9 @@ V1 docs must cover:
 - Consent requirements for outbound SMS.
 - STOP/START behavior.
 - Message body retention considerations.
+- MMS/recording media lifecycle: Twilio media URLs may require authentication
+  and may not be retained forever. Apps that need long-term media retention must
+  fetch and store media in their own storage before provider retention expires.
 - Recording consent considerations.
 - How to disable raw payload storage.
 
@@ -905,6 +1056,7 @@ V1 docs must cover:
 ### Unit Tests
 
 - status mappers
+- status precedence rules
 - phone number normalization
 - business-hours calculations
 - route decisions
@@ -916,11 +1068,17 @@ V1 docs must cover:
 - inbound SMS webhook
 - SMS status callback
 - outbound SMS queue job with fake provider
+- outbound SMS job does not double-send when retried after SID is saved
+- outbound SMS uncertain timeout becomes `send_unknown`, not automatic resend
 - inbound voice webhook forwarding
 - dial status fallback to voicemail
-- recording callback to voicemail
+- recording callback to voicemail only when purpose is `voicemail`
 - invalid Twilio signature rejection
+- invalid Twilio signature creates minimal rejected receipt
+- signature validation uses configured public base URL behind proxy
+- webhook routes do not require CSRF/session middleware
 - duplicate webhook idempotency
+- out-of-order status callbacks do not regress message or call status
 - webhook replay
 
 ### Integration Test Shape
@@ -941,10 +1099,14 @@ V1 docs:
 - voicemail setup
 - business-hours setup
 - webhook security
+- public webhook base URL and proxy setup
+- stateless webhook middleware and CSRF avoidance
 - local development with public tunnel
 - testing with provider fake
 - extension contracts
 - AI handoff overview
+- 10DLC and Messaging Service guidance
+- media retention guidance
 - production checklist
 
 ## V1 Acceptance Criteria
@@ -954,12 +1116,17 @@ V1 is complete when:
 - Package installs in a fresh Laravel 11, 12, or 13 app.
 - Config and migrations publish successfully.
 - Twilio webhooks are signature-validated by default.
+- Signature validation works behind a proxy using configured public base URL.
+- Twilio routes are stateless and do not require CSRF tokens.
 - Inbound SMS creates durable threads and messages.
 - Outbound SMS can be sent synchronously or queued.
+- Outbound send jobs guard against duplicate sends on retry.
 - Outbound message status callbacks update records idempotently.
+- Out-of-order status callbacks cannot regress records.
 - Inbound calls can be forwarded during business hours.
 - Calls can fall back to voicemail.
-- Recording callbacks create voicemail records.
+- Recording callbacks create voicemail records only for voicemail-purpose
+  recordings.
 - Duplicate webhooks do not duplicate business records.
 - Failed webhook processing can be inspected and replayed.
 - Contacts, routing, notifications, activity logging, and AI handoff are
@@ -1019,12 +1186,18 @@ Issues:
 - `V1-03-04` Add payload redaction config.
 - `V1-03-05` Add webhook replay service.
 - `V1-03-06` Add tests for invalid signature and duplicate delivery.
+- `V1-03-07` Add public webhook base URL support for proxy-safe validation.
+- `V1-03-08` Add stateless CSRF-free webhook route middleware.
+- `V1-03-09` Store minimal receipts for invalid-signature requests.
 
 Acceptance:
 
 - Invalid signatures are rejected.
 - Every accepted webhook has a receipt.
+- Invalid signatures have a minimal forensic receipt.
 - Duplicate payloads do not duplicate domain records.
+- Proxy/TLS termination does not break signature validation when base URL is
+  configured.
 
 ### Epic V1-04 - Core Models
 
@@ -1062,12 +1235,18 @@ Issues:
 - `V1-05-08` Add opt-out policy.
 - `V1-05-09` Add SMS events.
 - `V1-05-10` Add SMS docs.
+- `V1-05-11` Add outbound send idempotency guard and uncertain-send handling.
+- `V1-05-12` Add message status precedence and atomic update rules.
+- `V1-05-13` Add Messaging Service sender precedence.
 
 Acceptance:
 
 - Inbound SMS stores one message per Twilio message SID.
 - Outbound SMS can be sent with fake provider in tests.
+- Retried jobs do not double-send after Twilio accepted a message.
+- Provider timeouts after possible send are marked `send_unknown`.
 - Status callbacks update message records.
+- Out-of-order status callbacks do not regress message state.
 - Opted-out threads block outbound sends by default.
 
 ### Epic V1-06 - Voice
@@ -1084,6 +1263,8 @@ Issues:
 - `V1-06-06` Add call status callback.
 - `V1-06-07` Add missed-call event.
 - `V1-06-08` Add voice docs.
+- `V1-06-09` Enforce synchronous voice path latency boundaries.
+- `V1-06-10` Use provider callback sequence numbers where available.
 
 Acceptance:
 
@@ -1091,6 +1272,7 @@ Acceptance:
 - Forwarded calls include a dial action callback.
 - Busy/no-answer can fall back to voicemail.
 - Call status updates are persisted.
+- Slow contact/CRM work is deferred outside the TwiML response path.
 
 ### Epic V1-07 - Business Hours And Voicemail
 
@@ -1105,11 +1287,13 @@ Issues:
 - `V1-07-05` Add voicemail processor.
 - `V1-07-06` Add voicemail events.
 - `V1-07-07` Add voicemail docs.
+- `V1-07-08` Thread recording purpose through callback processing.
 
 Acceptance:
 
 - Closed-hours calls route to voicemail by default.
-- Recording callbacks create voicemail records.
+- Voicemail-purpose recording callbacks create voicemail records.
+- Non-voicemail recordings do not create voicemail records.
 - Applications can listen for `VoicemailCreated`.
 
 ### Epic V1-08 - Extension Contracts
@@ -1145,11 +1329,13 @@ Issues:
 - `V1-09-04` Add AI status callback route.
 - `V1-09-05` Add AI session events.
 - `V1-09-06` Add AI handoff docs.
+- `V1-09-07` Add full Conversation Relay attribute contract.
 
 Acceptance:
 
 - Router can return an AI handoff decision.
 - Package emits TwiML with configured WebSocket URL.
+- Package supports voice, language, greeting, and auth/session attributes.
 - AI session records are persisted.
 - No LLM provider dependency is required.
 
@@ -1165,10 +1351,12 @@ Issues:
 - `V1-10-04` Add retention configuration.
 - `V1-10-05` Add production checklist.
 - `V1-10-06` Add compliance docs.
+- `V1-10-07` Add optional `phone:doctor --live` Twilio credential check.
 
 Acceptance:
 
 - Doctor command catches common misconfiguration.
+- Doctor command can optionally verify live Twilio credentials.
 - Failed webhook receipts can be replayed.
 - Old raw payloads can be pruned.
 
@@ -1186,6 +1374,9 @@ Issues:
 - `V1-11-06` Write business-hours guide.
 - `V1-11-07` Write testing/fakes guide.
 - `V1-11-08` Add example appointment reminder.
+- `V1-11-09` Write proxy/base URL and CSRF-free webhook setup guide.
+- `V1-11-10` Write 10DLC/Messaging Service guidance.
+- `V1-11-11` Write media retention guidance.
 
 Acceptance:
 

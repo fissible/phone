@@ -8,8 +8,8 @@ shell into a usable Laravel foundation for Twilio-backed SMS and voice.
 - The base package is Laravel-first and UI-free.
 - Twilio is the first supported provider.
 - Provider-specific details stay behind contracts where the boundary is clear.
-- Multi-tenant apps are supported through a nullable application scope, not a
-  hard dependency on any tenancy package.
+- Multi-tenant apps are supported through a package scope key, not a hard
+  dependency on any tenancy package.
 - Station integration is a separate adapter, not part of this repository.
 - A Filament inbox can be a companion package after the core is useful.
 
@@ -17,16 +17,20 @@ shell into a usable Laravel foundation for Twilio-backed SMS and voice.
 
 ### Application Scope
 
-Core tables should include nullable scope columns so single-tenant apps can use
-the package without setup, while multi-tenant apps can isolate records.
+Core tables should include a non-null `scope_key` so single-tenant apps can use
+the package without setup, while multi-tenant apps can isolate records. Nullable
+scope metadata can identify the host app model behind the scope.
 
 Recommended shape:
 
+- `scope_key` string, default `global`
 - `scope_type` nullable string
 - `scope_id` nullable string
 
-The package should expose a `ScopeResolver` contract. Station can map this to a
-tenant; a simple Laravel app can return `null`.
+The package should expose a `ScopeResolver` contract for outbound and
+app-initiated operations. Inbound webhook scope comes from the matched local
+phone number, because webhooks have no authenticated request context. Station
+can map `scope_key` to a tenant; a simple Laravel app can use `global`.
 
 ### Contact Integration
 
