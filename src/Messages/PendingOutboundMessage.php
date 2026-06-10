@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Messages;
 
-use Fissible\Phone\Contracts\PhoneProvider;
 use Fissible\Phone\Exceptions\PhoneMessageException;
+use Fissible\Phone\Models\PhoneMessage;
+use Fissible\Phone\Sms\OutboundMessageService;
 use Fissible\Phone\ValueObjects\OutboundMessage;
-use Fissible\Phone\ValueObjects\ProviderMessage;
 
 class PendingOutboundMessage
 {
@@ -27,7 +27,7 @@ class PendingOutboundMessage
     /** @var array<string, mixed> */
     private array $metadata = [];
 
-    public function __construct(private readonly PhoneProvider $provider) {}
+    public function __construct(private readonly OutboundMessageService $messages) {}
 
     public function to(string $number): self
     {
@@ -87,7 +87,17 @@ class PendingOutboundMessage
         return $this;
     }
 
-    public function send(): ProviderMessage
+    public function send(): PhoneMessage
+    {
+        return $this->messages->send($this->outboundMessage());
+    }
+
+    public function queue(): PhoneMessage
+    {
+        return $this->messages->queue($this->outboundMessage());
+    }
+
+    private function outboundMessage(): OutboundMessage
     {
         if ($this->to === null || $this->to === '') {
             throw PhoneMessageException::missingRecipient();
@@ -97,7 +107,7 @@ class PendingOutboundMessage
             throw PhoneMessageException::missingBodyAndMedia();
         }
 
-        return $this->provider->sendMessage(new OutboundMessage(
+        return new OutboundMessage(
             to: $this->to,
             from: $this->from,
             messagingServiceSid: $this->messagingServiceSid,
@@ -105,6 +115,6 @@ class PendingOutboundMessage
             mediaUrls: $this->mediaUrls,
             statusCallbackUrl: $this->statusCallbackUrl,
             metadata: $this->metadata,
-        ));
+        );
     }
 }

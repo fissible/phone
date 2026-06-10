@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('provider_message_sid')->nullable();
             $table->string('provider_account_sid')->nullable();
             $table->string('direction');
-            $table->string('from_number');
+            $table->string('from_number')->nullable();
             $table->string('to_number');
             $table->text('body')->nullable();
             $table->json('media')->nullable();

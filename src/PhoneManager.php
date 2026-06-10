@@ -6,6 +6,7 @@ namespace Fissible\Phone;
 
 use Fissible\Phone\Contracts\PhoneProvider;
 use Fissible\Phone\Messages\PendingOutboundMessage;
+use Fissible\Phone\Sms\OutboundMessageService;
 use Fissible\Phone\Testing\FakePhoneProvider;
 use Illuminate\Contracts\Container\Container;
 
@@ -20,7 +21,7 @@ class PhoneManager
 
     public function messages(): PendingOutboundMessage
     {
-        return new PendingOutboundMessage($this->provider());
+        return new PendingOutboundMessage($this->container->make(OutboundMessageService::class));
     }
 
     public function fake(?FakePhoneProvider $fake = null): FakePhoneProvider

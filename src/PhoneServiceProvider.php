@@ -6,9 +6,11 @@ namespace Fissible\Phone;
 
 use Fissible\Phone\Contracts\PhoneNumberResolver;
 use Fissible\Phone\Contracts\PhoneProvider;
+use Fissible\Phone\Contracts\ScopeResolver;
 use Fissible\Phone\Exceptions\PhoneConfigurationException;
 use Fissible\Phone\Http\Middleware\ValidateTwilioWebhook;
 use Fissible\Phone\Services\DefaultPhoneNumberResolver;
+use Fissible\Phone\Services\DefaultScopeResolver;
 use Fissible\Phone\Services\WebhookReceiptRecorder;
 use Fissible\Phone\Twilio\TwilioClientFactory;
 use Fissible\Phone\Twilio\TwilioPhoneProvider;
@@ -27,6 +29,7 @@ class PhoneServiceProvider extends ServiceProvider
         $this->app->singleton(WebhookReceiptRecorder::class);
 
         $this->app->bind(PhoneNumberResolver::class, DefaultPhoneNumberResolver::class);
+        $this->app->bind(ScopeResolver::class, DefaultScopeResolver::class);
 
         $this->app->bind(PhoneProvider::class, function ($app): PhoneProvider {
             $provider = (string) $app['config']->get('phone.provider', 'twilio');

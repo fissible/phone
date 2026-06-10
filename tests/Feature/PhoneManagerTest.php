@@ -25,8 +25,8 @@ it('can fake outbound messages without twilio credentials', function (): void {
         ->body("We're on for this morning.")
         ->send();
 
-    expect($receipt->provider)->toBe('fake')
-        ->and($receipt->providerMessageSid)->toStartWith('SM')
+    expect($receipt->provider)->toBe('twilio')
+        ->and($receipt->provider_message_sid)->toStartWith('SM')
         ->and($receipt->status)->toBe('sent')
         ->and($fake->messages())->toHaveCount(1)
         ->and($fake->messages()[0]->to)->toBe('+16615551212')

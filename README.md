@@ -63,6 +63,17 @@ Phone::messages()
     ->send();
 ```
 
+`send()` persists a `phone_messages` row, runs the guarded send job
+synchronously, and returns the updated `PhoneMessage` model. Use `queue()` to
+persist the message and dispatch the send job through Laravel's bus:
+
+```php
+Phone::messages()
+    ->to('+16615551212')
+    ->body('Crew is on site.')
+    ->queue();
+```
+
 For tests:
 
 ```php
@@ -75,6 +86,12 @@ Phone::messages()
 
 $fake->messages();
 ```
+
+Outbound sends are idempotent at the message row level. The send job atomically
+claims a `queued` row before calling Twilio and exits without sending if the row
+already has a provider SID or is no longer sendable. Unexpected provider
+failures are marked `send_unknown` instead of being blindly retried, so an
+ambiguous timeout cannot double-text a customer.
 
 Twilio sender precedence is:
 

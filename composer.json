@@ -13,6 +13,7 @@
     ],
     "require": {
         "php": "^8.2",
+        "illuminate/bus": "^11.0|^12.0|^13.0",
         "illuminate/config": "^11.0|^12.0|^13.0",
         "illuminate/contracts": "^11.0|^12.0|^13.0",
         "illuminate/database": "^11.0|^12.0|^13.0",
