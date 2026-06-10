@@ -1,0 +1,123 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Fissible\Phone\Voice;
+
+use Fissible\Phone\Contracts\CallRouter;
+use Fissible\Phone\Contracts\PhoneNumberResolver;
+use Fissible\Phone\Events\CallRouteDecided;
+use Fissible\Phone\Events\InboundCallReceived;
+use Fissible\Phone\Models\PhoneCall;
+use Fissible\Phone\Models\PhoneNumber;
+use Fissible\Phone\Models\WebhookReceipt;
+use Fissible\Phone\Support\CallStatus;
+use Fissible\Phone\Twilio\TwilioInboundVoicePayload;
+use Fissible\Phone\Twilio\TwilioVoiceTwiMLBuilder;
+use Fissible\Phone\ValueObjects\CallContext;
+use Fissible\Phone\ValueObjects\InboundVoiceResult;
+use Fissible\Phone\ValueObjects\RouteDecision;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class InboundVoiceProcessor
+{
+    public function __construct(
+        private readonly PhoneNumberResolver $phoneNumbers,
+        private readonly CallRouter $router,
+        private readonly TwilioVoiceTwiMLBuilder $twiml,
+        private readonly Dispatcher $events,
+    ) {}
+
+    public function processTwilio(Request $request, ?WebhookReceipt $receipt = null): InboundVoiceResult
+    {
+        $payload = TwilioInboundVoicePayload::fromRequest($request);
+        $created = false;
+        $decisionCreated = false;
+
+        /** @var array{call: PhoneCall, phone_number: PhoneNumber, decision: RouteDecision} $result */
+        $result = DB::transaction(function () use ($payload, $receipt, &$created, &$decisionCreated): array {
+            $phoneNumber = $this->phoneNumbers->resolveForInbound($payload->to, $payload->accountSid);
+
+            /** @var PhoneCall|null $call */
+            $call = PhoneCall::query()
+                ->where('provider', 'twilio')
+                ->where('provider_call_sid', $payload->callSid)
+                ->first();
+
+            if (! $call instanceof PhoneCall) {
+                $created = true;
+                $call = PhoneCall::query()->create([
+                    'scope_key' => $phoneNumber->scope_key,
+                    'scope_type' => $phoneNumber->scope_type,
+                    'scope_id' => $phoneNumber->scope_id,
+                    'provider' => 'twilio',
+                    'phone_number_id' => $phoneNumber->getKey(),
+                    'webhook_receipt_id' => $receipt?->getKey(),
+                    'provider_call_sid' => $payload->callSid,
+                    'provider_parent_call_sid' => $payload->parentCallSid,
+                    'provider_account_sid' => $payload->accountSid,
+                    'provider_sequence_number' => $payload->sequenceNumber,
+                    'direction' => 'inbound',
+                    'from_number' => $payload->from,
+                    'to_number' => $payload->to,
+                    'status' => $payload->callStatus,
+                    'status_rank' => CallStatus::rank($payload->callStatus),
+                    'started_at' => now(),
+                    'metadata' => [
+                        'twilio' => $payload->raw,
+                    ],
+                ]);
+            }
+
+            $decision = $this->routeDecision($call, $phoneNumber, $payload, $decisionCreated);
+
+            return [
+                'call' => $call,
+                'phone_number' => $phoneNumber,
+                'decision' => $decision,
+            ];
+        });
+
+        $call = $result['call']->refresh();
+        $phoneNumber = $result['phone_number'];
+        $decision = $result['decision'];
+
+        if ($created) {
+            $this->events->dispatch(new InboundCallReceived($call, $phoneNumber, $receipt));
+        }
+
+        if ($decisionCreated) {
+            $this->events->dispatch(new CallRouteDecided($call, $phoneNumber, $decision));
+        }
+
+        return new InboundVoiceResult(
+            call: $call,
+            phoneNumber: $phoneNumber,
+            decision: $decision,
+            twiml: $this->twiml->build($decision),
+        );
+    }
+
+    private function routeDecision(
+        PhoneCall $call,
+        PhoneNumber $phoneNumber,
+        TwilioInboundVoicePayload $payload,
+        bool &$decisionCreated,
+    ): RouteDecision {
+        if (is_array($call->route_decision) && $call->route_decision !== []) {
+            return RouteDecision::fromArray($call->route_decision);
+        }
+
+        $decisionCreated = true;
+        $decision = $this->router->route(new CallContext($call, $phoneNumber, $payload));
+
+        $call->forceFill([
+            'routing_mode' => $decision->type,
+            'route_decision' => $decision->toArray(),
+        ])->save();
+
+        return $decision;
+    }
+}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone;
 
+use Fissible\Phone\Contracts\CallRouter;
 use Fissible\Phone\Contracts\MessagePolicy;
 use Fissible\Phone\Contracts\OptOutPolicy;
 use Fissible\Phone\Contracts\PhoneNumberResolver;
@@ -11,6 +12,7 @@ use Fissible\Phone\Contracts\PhoneProvider;
 use Fissible\Phone\Contracts\ScopeResolver;
 use Fissible\Phone\Exceptions\PhoneConfigurationException;
 use Fissible\Phone\Http\Middleware\ValidateTwilioWebhook;
+use Fissible\Phone\Services\DefaultCallRouter;
 use Fissible\Phone\Services\DefaultMessagePolicy;
 use Fissible\Phone\Services\DefaultOptOutPolicy;
 use Fissible\Phone\Services\DefaultPhoneNumberResolver;
@@ -34,6 +36,7 @@ class PhoneServiceProvider extends ServiceProvider
 
         $this->app->bind(PhoneNumberResolver::class, DefaultPhoneNumberResolver::class);
         $this->app->bind(ScopeResolver::class, DefaultScopeResolver::class);
+        $this->app->bind(CallRouter::class, DefaultCallRouter::class);
         $this->app->bind(MessagePolicy::class, DefaultMessagePolicy::class);
         $this->app->bind(OptOutPolicy::class, DefaultOptOutPolicy::class);
 

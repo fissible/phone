@@ -181,8 +181,20 @@ Inbound STOP-style keywords set `phone_threads.opted_out_at`; START-style
 keywords clear it. The default keyword lists are US SMS-oriented and can be
 replaced by binding your own `Fissible\Phone\Contracts\OptOutPolicy`.
 
-Voice routing is not implemented yet; the inbound voice endpoint currently
-acknowledges with empty TwiML until the call router milestone lands.
+Inbound voice now creates a `phone_calls` record and returns TwiML from the
+configured router. The default router uses the matched `phone_numbers` row when
+it has `routing_mode=forward` and `forward_to` set, otherwise it falls back to
+`PHONE_FORWARD_TO`:
+
+```env
+PHONE_FORWARD_TO=+16615559999
+```
+
+Forwarded calls include a dial action callback to
+`/phone/twilio/voice/dial-status`. If no forward destination is configured, the
+default router returns simple voicemail TwiML with a recording status callback
+tagged as `purpose=voicemail`; recording persistence lands in a later milestone.
+Host apps can replace routing by binding `Fissible\Phone\Contracts\CallRouter`.
 
 ## Early Milestones
 

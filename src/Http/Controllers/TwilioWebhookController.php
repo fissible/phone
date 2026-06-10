@@ -8,6 +8,7 @@ use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Services\WebhookReceiptRecorder;
 use Fissible\Phone\Sms\InboundSmsProcessor;
 use Fissible\Phone\Sms\MessageStatusProcessor;
+use Fissible\Phone\Voice\InboundVoiceProcessor;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -42,9 +43,20 @@ class TwilioWebhookController
         }
     }
 
-    public function inboundVoice(Request $request, WebhookReceiptRecorder $receipts): Response
+    public function inboundVoice(Request $request, WebhookReceiptRecorder $receipts, InboundVoiceProcessor $processor): Response
     {
-        return $this->emptyTwiml($request, $receipts);
+        try {
+            $result = $processor->processTwilio($request, $this->receipt($request));
+            $receipts->markProcessed($this->receipt($request));
+
+            return response($result->twiml, Response::HTTP_OK, [
+                'Content-Type' => 'text/xml',
+            ]);
+        } catch (Throwable $exception) {
+            $receipts->markFailed($this->receipt($request), $exception);
+
+            throw $exception;
+        }
     }
 
     public function dialStatus(Request $request, WebhookReceiptRecorder $receipts): Response
@@ -78,21 +90,6 @@ class TwilioWebhookController
             $receipts->markProcessed($this->receipt($request));
 
             return response()->noContent();
-        } catch (Throwable $exception) {
-            $receipts->markFailed($this->receipt($request), $exception);
-
-            throw $exception;
-        }
-    }
-
-    private function emptyTwiml(Request $request, WebhookReceiptRecorder $receipts): Response
-    {
-        try {
-            $receipts->markProcessed($this->receipt($request));
-
-            return response('<Response></Response>', Response::HTTP_OK, [
-                'Content-Type' => 'text/xml',
-            ]);
         } catch (Throwable $exception) {
             $receipts->markFailed($this->receipt($request), $exception);
 

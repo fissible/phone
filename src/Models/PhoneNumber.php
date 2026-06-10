@@ -36,4 +36,9 @@ class PhoneNumber extends Model
     {
         return $this->hasMany(PhoneMessage::class, 'phone_number_id');
     }
+
+    public function calls(): HasMany
+    {
+        return $this->hasMany(PhoneCall::class, 'phone_number_id');
+    }
 }

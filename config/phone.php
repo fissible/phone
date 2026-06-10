@@ -29,6 +29,7 @@ return [
         'forward_to' => env('PHONE_FORWARD_TO'),
         'timeout' => 20,
         'after_hours_mode' => 'voicemail',
+        'voicemail_greeting' => env('PHONE_VOICEMAIL_GREETING', 'Please leave a message after the tone.'),
     ],
 
     'business_hours' => [
