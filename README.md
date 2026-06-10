@@ -49,6 +49,40 @@ a small `fissible/phone-core` PHP package. Starting in Laravel keeps the first
 version grounded in the workflows that actually matter: webhooks, persistence,
 queues, events, and application integration.
 
+## Current Pre-alpha API
+
+The current build includes package config, service-provider bindings, a `Phone`
+facade, a Twilio provider adapter, and a test fake.
+
+```php
+use Fissible\Phone\Facades\Phone;
+
+Phone::messages()
+    ->to('+16615551212')
+    ->body("We're on for this morning.")
+    ->send();
+```
+
+For tests:
+
+```php
+$fake = Phone::fake();
+
+Phone::messages()
+    ->to('+16615551212')
+    ->body('Crew is on site.')
+    ->send();
+
+$fake->messages();
+```
+
+Twilio sender precedence is:
+
+1. explicit Messaging Service SID
+2. configured default Messaging Service SID
+3. explicit `from` number
+4. configured default `from` number
+
 ## Early Milestones
 
 1. Twilio credentials, config, and webhook signature validation.

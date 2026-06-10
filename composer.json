@@ -13,19 +13,45 @@
     ],
     "require": {
         "php": "^8.2",
+        "illuminate/config": "^11.0|^12.0|^13.0",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
         "illuminate/support": "^11.0|^12.0|^13.0",
         "twilio/sdk": "^8.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.24",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "pestphp/pest": "^3.0|^4.0",
+        "pestphp/pest-plugin-laravel": "^3.0|^4.0",
+        "phpunit/phpunit": "^11.0|^12.0"
     },
     "autoload": {
         "psr-4": {
             "Fissible\\Phone\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Fissible\\Phone\\Tests\\": "tests/Support/"
+        }
+    },
+    "scripts": {
+        "format": "pint",
+        "test": "pest"
+    },
     "extra": {
         "laravel": {
             "providers": [
                 "Fissible\\Phone\\PhoneServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Phone": "Fissible\\Phone\\Facades\\Phone"
+            }
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
         }
     },
     "minimum-stability": "dev",
