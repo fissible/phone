@@ -1,0 +1,33 @@
+{
+    "name": "fissible/phone",
+    "description": "Laravel package for Twilio-backed business voice and SMS workflows.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "twilio",
+        "sms",
+        "voice",
+        "phone",
+        "voicemail"
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "twilio/sdk": "^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Fissible\\Phone\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Fissible\\Phone\\PhoneServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
