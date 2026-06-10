@@ -12,6 +12,7 @@ integrations.
 
 - [Scope](docs/SCOPE.md)
 - [Roadmap](docs/ROADMAP.md)
+- [V1 Design](docs/V1_DESIGN.md)
 
 ## Goals
 
