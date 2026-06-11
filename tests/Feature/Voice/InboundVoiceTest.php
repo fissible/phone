@@ -141,6 +141,127 @@ it('can opt into twilio voicemail transcription callbacks', function (): void {
         ->and($call->route_decision['transcription_callback_url'])->toBe('https://example.com/phone/twilio/voice/transcription?call_id='.$call->id.'&purpose=voicemail');
 });
 
+it('forwards calls during configured business hours', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-06-10 10:15:00', 'America/Los_Angeles'));
+    config()->set('phone.business_hours', [
+        'timezone' => 'America/Los_Angeles',
+        'weekly' => [
+            'wednesday' => [
+                ['start' => '09:00', 'end' => '17:00'],
+            ],
+        ],
+        'holidays' => [],
+    ]);
+
+    $response = $this->post('/phone/twilio/voice/inbound', inboundVoicePayload([
+        'CallSid' => 'CA'.str_repeat('6', 32),
+    ]));
+
+    $response->assertOk();
+
+    $xml = voiceXml($response->getContent());
+    $call = PhoneCall::query()->sole();
+
+    expect((string) $xml->Dial)->toBe('+16615559999')
+        ->and($call->route_decision['type'])->toBe('forward');
+});
+
+it('uses after-hours voicemail outside configured business hours', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-06-10 18:15:00', 'America/Los_Angeles'));
+    config()->set('phone.default_voice.after_hours_mode', 'voicemail');
+    config()->set('phone.business_hours', [
+        'timezone' => 'America/Los_Angeles',
+        'weekly' => [
+            'wednesday' => [
+                ['start' => '09:00', 'end' => '17:00'],
+            ],
+        ],
+        'holidays' => [],
+    ]);
+
+    $response = $this->post('/phone/twilio/voice/inbound', inboundVoicePayload([
+        'CallSid' => 'CA'.str_repeat('7', 32),
+    ]));
+
+    $response->assertOk();
+
+    $xml = voiceXml($response->getContent());
+    $call = PhoneCall::query()->sole();
+
+    expect((string) $xml->Say)->toBe('Please leave a message after the tone.')
+        ->and((string) $xml->Record['recordingStatusCallback'])->toBe('https://example.com/phone/twilio/voice/recording?call_id='.$call->id.'&purpose=voicemail')
+        ->and($call->routing_mode)->toBe('voicemail')
+        ->and($call->route_decision['type'])->toBe('voicemail');
+});
+
+it('allows phone number business hours to override global hours', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-06-10 10:15:00', 'America/Los_Angeles'));
+    config()->set('phone.business_hours', [
+        'timezone' => 'America/Los_Angeles',
+        'weekly' => [
+            'wednesday' => false,
+        ],
+        'holidays' => [],
+    ]);
+
+    PhoneNumber::query()->create([
+        'scope_key' => 'tenant:acme',
+        'scope_type' => 'tenant',
+        'scope_id' => 'acme',
+        'provider' => 'twilio',
+        'phone_number' => '+16615550100',
+        'provider_account_sid' => 'AC'.str_repeat('9', 32),
+        'routing_mode' => 'forward',
+        'forward_to' => '+16615558888',
+        'business_hours' => [
+            'timezone' => 'America/Los_Angeles',
+            'weekly' => [
+                'wednesday' => '09:00-17:00',
+            ],
+        ],
+        'status' => 'active',
+    ]);
+
+    $response = $this->post('/phone/twilio/voice/inbound', inboundVoicePayload([
+        'CallSid' => 'CA'.str_repeat('8', 32),
+    ]));
+
+    $response->assertOk();
+
+    $xml = voiceXml($response->getContent());
+    $call = PhoneCall::query()->sole();
+
+    expect((string) $xml->Dial)->toBe('+16615558888')
+        ->and($call->route_decision['type'])->toBe('forward');
+});
+
+it('uses after-hours mode on configured holidays', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-06-10 10:15:00', 'America/Los_Angeles'));
+    config()->set('phone.default_voice.after_hours_mode', 'voicemail');
+    config()->set('phone.business_hours', [
+        'timezone' => 'America/Los_Angeles',
+        'weekly' => [
+            'wednesday' => [
+                ['start' => '09:00', 'end' => '17:00'],
+            ],
+        ],
+        'holidays' => [
+            '2026-06-10',
+        ],
+    ]);
+
+    $response = $this->post('/phone/twilio/voice/inbound', inboundVoicePayload([
+        'CallSid' => 'CA'.str_repeat('9', 32),
+    ]));
+
+    $response->assertOk();
+
+    $xml = voiceXml($response->getContent());
+
+    expect((string) $xml->Say)->toBe('Please leave a message after the tone.')
+        ->and(PhoneCall::query()->sole()->route_decision['type'])->toBe('voicemail');
+});
+
 it('does not duplicate calls or events when twilio retries the same inbound voice webhook', function (): void {
     Event::fake([
         InboundCallReceived::class,

@@ -13,6 +13,7 @@ class DefaultCallRouter implements CallRouter
 {
     public function __construct(
         private readonly Repository $config,
+        private readonly BusinessHours $businessHours,
     ) {}
 
     public function route(CallContext $call): RouteDecision
@@ -20,6 +21,13 @@ class DefaultCallRouter implements CallRouter
         $mode = $this->string($call->phoneNumber->routing_mode)
             ?: $this->string($this->config->get('phone.default_voice.mode'))
             ?: RouteDecision::FORWARD;
+
+        if ($mode === RouteDecision::FORWARD && ! $this->businessHours->isOpen($call->phoneNumber)) {
+            $hours = $this->businessHours->hoursFor($call->phoneNumber);
+            $mode = $this->businessHours->afterHoursMode($hours)
+                ?: $this->string($this->config->get('phone.default_voice.after_hours_mode'))
+                ?: RouteDecision::VOICEMAIL;
+        }
 
         return match ($mode) {
             RouteDecision::REJECT => RouteDecision::reject(),

@@ -196,6 +196,31 @@ default router returns simple voicemail TwiML with a recording status callback
 tagged as `purpose=voicemail`. Host apps can replace routing by binding
 `Fissible\Phone\Contracts\CallRouter`.
 
+Business-hours routing is built into the default forward mode. If no weekly
+hours are configured, numbers are treated as always open. Once weekly hours are
+configured, calls forward only inside those windows and use
+`phone.default_voice.after_hours_mode` outside them:
+
+```php
+'business_hours' => [
+    'timezone' => 'America/Los_Angeles',
+    'weekly' => [
+        'monday' => [['start' => '09:00', 'end' => '17:00']],
+        'tuesday' => [['start' => '09:00', 'end' => '17:00']],
+        'wednesday' => [['start' => '09:00', 'end' => '17:00']],
+        'thursday' => [['start' => '09:00', 'end' => '17:00']],
+        'friday' => [['start' => '09:00', 'end' => '17:00']],
+    ],
+    'holidays' => [
+        '2026-12-25',
+    ],
+],
+```
+
+Individual `phone_numbers.business_hours` values override the global
+business-hours config for that number. Day windows may also be written as
+strings such as `09:00-17:00`; use `false` or `closed` for a closed day.
+
 When Twilio reaches `POST /phone/twilio/voice/status` or the `<Dial>` action
 callback at `POST /phone/twilio/voice/dial-status`, the package updates the
 matching `phone_calls` row with the same deterministic progression used for SMS:
