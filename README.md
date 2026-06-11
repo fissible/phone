@@ -272,6 +272,24 @@ inbound voice after local persistence. Keep custom loggers fast in webhook
 requests; for slow CRM work, prefer Laravel event listeners or queued jobs using
 the persisted package events.
 
+### Team Notifications
+
+Bind `Fissible\Phone\Contracts\TeamNotifier` to send lightweight notifications
+to a host app, Slack, email, push system, or queue. The default notifier is a
+no-op. Notifications are UI-free `TeamNotification` value objects containing
+the persisted package models and provider metadata.
+
+The package currently emits team notifications for:
+
+- inbound SMS (`sms.inbound`)
+- missed inbound calls (`voice.missed`)
+- new voicemails (`voicemail.received`)
+
+Missed-call notifications are emitted only when a status callback actually moves
+an inbound call into an unanswered terminal state, so duplicate provider retries
+do not notify the team twice. Keep custom notifiers fast in webhook requests; if
+delivery can block, hand the `TeamNotification` to a queued job.
+
 ## Early Milestones
 
 1. Twilio credentials, config, and webhook signature validation.

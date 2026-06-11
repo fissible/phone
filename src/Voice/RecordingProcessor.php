@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Voice;
 
+use Fissible\Phone\Contracts\TeamNotifier;
 use Fissible\Phone\Events\RecordingStatusUpdated;
 use Fissible\Phone\Events\VoicemailReceived;
 use Fissible\Phone\Models\PhoneCall;
@@ -12,6 +13,8 @@ use Fissible\Phone\Models\PhoneVoicemail;
 use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Support\RecordingStatus;
 use Fissible\Phone\Twilio\TwilioRecordingPayload;
+use Fissible\Phone\ValueObjects\ContactIdentity;
+use Fissible\Phone\ValueObjects\TeamNotification;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
@@ -22,6 +25,7 @@ class RecordingProcessor
     public function __construct(
         private readonly Repository $config,
         private readonly Dispatcher $events,
+        private readonly TeamNotifier $notifier,
     ) {}
 
     public function processTwilio(Request $request, ?WebhookReceipt $receipt = null): PhoneRecording
@@ -76,9 +80,35 @@ class RecordingProcessor
                 call: $call,
                 webhookReceipt: $receipt,
             ));
+
+            $this->notifyVoicemailReceived($voicemailCreated, $recording, $call, $receipt);
         }
 
         return $recording;
+    }
+
+    private function notifyVoicemailReceived(
+        PhoneVoicemail $voicemail,
+        PhoneRecording $recording,
+        ?PhoneCall $call,
+        ?WebhookReceipt $receipt,
+    ): void {
+        $this->notifier->notify(new TeamNotification(
+            type: 'voicemail.received',
+            channel: 'voice',
+            occurredAt: $voicemail->received_at ?? now(),
+            direction: 'inbound',
+            phoneNumber: $voicemail->phoneNumber()->first(),
+            call: $call,
+            recording: $recording,
+            voicemail: $voicemail,
+            contact: ContactIdentity::anonymous($voicemail->from_number ?? $call?->from_number ?? 'Unknown'),
+            webhookReceipt: $receipt,
+            metadata: [
+                'provider_call_sid' => $recording->provider_call_sid,
+                'provider_recording_sid' => $recording->provider_recording_sid,
+            ],
+        ));
     }
 
     private function resolveCall(Request $request, TwilioRecordingPayload $payload): ?PhoneCall

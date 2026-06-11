@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Voice;
 
+use Fissible\Phone\Contracts\TeamNotifier;
 use Fissible\Phone\Events\CallStatusUpdated;
 use Fissible\Phone\Models\PhoneCall;
 use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Support\CallStatus;
 use Fissible\Phone\Twilio\TwilioCallStatusPayload;
+use Fissible\Phone\ValueObjects\ContactIdentity;
+use Fissible\Phone\ValueObjects\TeamNotification;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
 
@@ -16,6 +19,7 @@ class CallStatusProcessor
 {
     public function __construct(
         private readonly Dispatcher $events,
+        private readonly TeamNotifier $notifier,
     ) {}
 
     public function processTwilioStatus(Request $request, ?WebhookReceipt $receipt = null): ?PhoneCall
@@ -78,9 +82,49 @@ class CallStatusProcessor
                 providerStatus: $useDialStatus ? $payload->dialCallStatus : $payload->providerStatus,
                 webhookReceipt: $receipt,
             ));
+
+            if ($this->shouldNotifyMissedCall($call, $status)) {
+                $this->notifyMissedCall($call, $payload, $receipt, $source, $useDialStatus);
+            }
         }
 
         return $call;
+    }
+
+    private function shouldNotifyMissedCall(PhoneCall $call, string $status): bool
+    {
+        return $call->direction === 'inbound'
+            && in_array($status, [
+                CallStatus::BUSY,
+                CallStatus::FAILED,
+                CallStatus::NO_ANSWER,
+                CallStatus::CANCELED,
+                CallStatus::MISSED,
+            ], true);
+    }
+
+    private function notifyMissedCall(
+        PhoneCall $call,
+        TwilioCallStatusPayload $payload,
+        ?WebhookReceipt $receipt,
+        string $source,
+        bool $useDialStatus,
+    ): void {
+        $this->notifier->notify(new TeamNotification(
+            type: 'voice.missed',
+            channel: 'voice',
+            occurredAt: $call->ended_at ?? now(),
+            direction: 'inbound',
+            phoneNumber: $call->phoneNumber()->first(),
+            call: $call,
+            contact: ContactIdentity::anonymous($call->from_number ?? 'Unknown'),
+            webhookReceipt: $receipt,
+            metadata: [
+                'provider_call_sid' => $call->provider_call_sid,
+                'provider_status' => $useDialStatus ? $payload->dialCallStatus : $payload->providerStatus,
+                'source' => $source,
+            ],
+        ));
     }
 
     private function resolveCall(Request $request, TwilioCallStatusPayload $payload): ?PhoneCall

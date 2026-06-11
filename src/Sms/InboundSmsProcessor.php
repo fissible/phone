@@ -8,6 +8,7 @@ use DateTimeInterface;
 use Fissible\Phone\Contracts\ActivityLogger;
 use Fissible\Phone\Contracts\OptOutPolicy;
 use Fissible\Phone\Contracts\PhoneNumberResolver;
+use Fissible\Phone\Contracts\TeamNotifier;
 use Fissible\Phone\Events\InboundMessageReceived;
 use Fissible\Phone\Events\ThreadOptedIn;
 use Fissible\Phone\Events\ThreadOptedOut;
@@ -19,6 +20,7 @@ use Fissible\Phone\Twilio\TwilioInboundSmsPayload;
 use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\OptOutResult;
 use Fissible\Phone\ValueObjects\PhoneActivity;
+use Fissible\Phone\ValueObjects\TeamNotification;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +32,7 @@ class InboundSmsProcessor
         private readonly SmsThreadResolver $threads,
         private readonly OptOutPolicy $optOutPolicy,
         private readonly ActivityLogger $activity,
+        private readonly TeamNotifier $notifier,
         private readonly Dispatcher $events,
     ) {}
 
@@ -103,6 +106,21 @@ class InboundSmsProcessor
                 channel: 'sms',
                 direction: 'inbound',
                 occurredAt: $message->received_at ?? now(),
+                phoneNumber: $phoneNumber,
+                thread: $thread,
+                message: $message,
+                contact: $this->contactFromThread($thread, $message->from_number),
+                webhookReceipt: $receipt,
+                metadata: [
+                    'provider_message_sid' => $message->provider_message_sid,
+                ],
+            ));
+
+            $this->notifier->notify(new TeamNotification(
+                type: 'sms.inbound',
+                channel: 'sms',
+                occurredAt: $message->received_at ?? now(),
+                direction: 'inbound',
                 phoneNumber: $phoneNumber,
                 thread: $thread,
                 message: $message,
