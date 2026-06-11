@@ -18,5 +18,6 @@ final readonly class OutboundMessage
         public array $mediaUrls = [],
         public ?string $statusCallbackUrl = null,
         public array $metadata = [],
+        public ?ContactIdentity $contact = null,
     ) {}
 }

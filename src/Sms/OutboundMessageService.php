@@ -14,6 +14,7 @@ use Fissible\Phone\Models\PhoneMessage;
 use Fissible\Phone\Models\PhoneNumber;
 use Fissible\Phone\Models\PhoneThread;
 use Fissible\Phone\Support\MessageStatus;
+use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\OutboundMessage;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Config\Repository;
@@ -73,6 +74,10 @@ class OutboundMessageService
             }
 
             if ($thread instanceof PhoneThread) {
+                if ($message->contact instanceof ContactIdentity) {
+                    $this->applyThreadContact($thread, $message->contact);
+                }
+
                 $this->touchThreadForOutbound($thread, $queuedAt);
             }
 
@@ -95,12 +100,7 @@ class OutboundMessageService
                 'status' => MessageStatus::QUEUED,
                 'status_rank' => MessageStatus::rank(MessageStatus::QUEUED),
                 'queued_at' => $queuedAt,
-                'metadata' => array_replace_recursive($message->metadata, [
-                    'outbound' => [
-                        'messaging_service_sid' => $messagingServiceSid,
-                        'status_callback_url' => $statusCallbackUrl,
-                    ],
-                ]),
+                'metadata' => $this->messageMetadata($message, $messagingServiceSid, $statusCallbackUrl),
             ]);
         });
 
@@ -218,6 +218,37 @@ class OutboundMessageService
                 'last_outbound_message_at' => $queuedAt,
                 'updated_at' => $queuedAt,
             ]);
+    }
+
+    private function applyThreadContact(PhoneThread $thread, ContactIdentity $contact): void
+    {
+        $thread->forceFill([
+            'remote_display_name' => $contact->displayName,
+            'contact_type' => $contact->externalType,
+            'contact_id' => $contact->externalId,
+            'metadata' => array_replace($thread->metadata ?? [], [
+                'contact' => $contact->toArray(),
+            ]),
+        ])->save();
+    }
+
+    /** @return array<string, mixed> */
+    private function messageMetadata(OutboundMessage $message, ?string $messagingServiceSid, ?string $statusCallbackUrl): array
+    {
+        $metadata = array_replace_recursive($message->metadata, [
+            'outbound' => [
+                'messaging_service_sid' => $messagingServiceSid,
+                'status_callback_url' => $statusCallbackUrl,
+            ],
+        ]);
+
+        if ($message->contact instanceof ContactIdentity) {
+            $metadata = array_replace_recursive($metadata, [
+                'contact' => $message->contact->toArray(),
+            ]);
+        }
+
+        return $metadata;
     }
 
     private function defaultStatusCallbackUrl(): ?string

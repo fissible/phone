@@ -11,6 +11,7 @@ use Fissible\Phone\Exceptions\PhoneConfigurationException;
 use Fissible\Phone\Exceptions\PhoneMessageException;
 use Fissible\Phone\Models\PhoneMessage;
 use Fissible\Phone\Support\MessageStatus;
+use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\OutboundMessage;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -97,7 +98,20 @@ class SendOutboundMessage implements ShouldQueue
             mediaUrls: $media,
             statusCallbackUrl: $this->nullableString($outbound['status_callback_url'] ?? null),
             metadata: $metadata,
+            contact: $this->contactFromMetadata($metadata),
         );
+    }
+
+    /** @param array<string, mixed> $metadata */
+    private function contactFromMetadata(array $metadata): ?ContactIdentity
+    {
+        $contact = $metadata['contact'] ?? null;
+
+        if (! is_array($contact)) {
+            return null;
+        }
+
+        return ContactIdentity::fromArray($contact);
     }
 
     private function markFailed(PhoneMessage $message, Throwable $exception): void

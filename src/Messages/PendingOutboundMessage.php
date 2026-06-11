@@ -7,6 +7,7 @@ namespace Fissible\Phone\Messages;
 use Fissible\Phone\Exceptions\PhoneMessageException;
 use Fissible\Phone\Models\PhoneMessage;
 use Fissible\Phone\Sms\OutboundMessageService;
+use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\OutboundMessage;
 
 class PendingOutboundMessage
@@ -26,6 +27,8 @@ class PendingOutboundMessage
 
     /** @var array<string, mixed> */
     private array $metadata = [];
+
+    private ?ContactIdentity $contact = null;
 
     public function __construct(private readonly OutboundMessageService $messages) {}
 
@@ -87,6 +90,27 @@ class PendingOutboundMessage
         return $this;
     }
 
+    /** @param array<string, mixed> $metadata */
+    public function contact(string $type, string|int $id, string $name, ?string $url = null, array $metadata = []): self
+    {
+        $this->contact = new ContactIdentity(
+            displayName: $name,
+            externalType: $type,
+            externalId: (string) $id,
+            url: $url,
+            metadata: $metadata,
+        );
+
+        return $this;
+    }
+
+    public function contactIdentity(ContactIdentity $contact): self
+    {
+        $this->contact = $contact;
+
+        return $this;
+    }
+
     public function allowUnknownRecipient(bool $allowed = true): self
     {
         $this->metadata = array_replace_recursive($this->metadata, [
@@ -126,6 +150,7 @@ class PendingOutboundMessage
             mediaUrls: $this->mediaUrls,
             statusCallbackUrl: $this->statusCallbackUrl,
             metadata: $this->metadata,
+            contact: $this->contact,
         );
     }
 }

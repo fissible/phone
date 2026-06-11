@@ -66,7 +66,16 @@ it('notifies teams about missed inbound calls once', function (): void {
 
     app()->instance(TeamNotifier::class, $notifier);
 
-    $call = teamNotifierCall();
+    $call = teamNotifierCall([
+        'metadata' => [
+            'contact' => [
+                'display_name' => 'Sam Lead',
+                'external_type' => 'lead',
+                'external_id' => 'lead_123',
+                'resolved' => true,
+            ],
+        ],
+    ]);
 
     $this->post('/phone/twilio/voice/dial-status?call_id='.$call->id, teamNotifierDialStatusPayload([
         'DialCallStatus' => 'no-answer',
@@ -91,7 +100,9 @@ it('notifies teams about missed inbound calls once', function (): void {
         ->and($notification->direction)->toBe('inbound')
         ->and($notification->call?->is($call))->toBeTrue()
         ->and($notification->phoneNumber?->id)->toBe($call->phone_number_id)
-        ->and($notification->contact?->displayName)->toBe('+16615551212')
+        ->and($notification->contact?->displayName)->toBe('Sam Lead')
+        ->and($notification->contact?->externalType)->toBe('lead')
+        ->and($notification->contact?->externalId)->toBe('lead_123')
         ->and($notification->metadata['provider_call_sid'])->toBe('CA'.str_repeat('7', 32))
         ->and($notification->metadata['provider_status'])->toBe('no-answer')
         ->and($notification->metadata['source'])->toBe('twilio_dial_status_callback');

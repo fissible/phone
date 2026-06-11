@@ -8,6 +8,7 @@ use Fissible\Phone\Contracts\ContactResolver;
 use Fissible\Phone\Models\PhoneNumber;
 use Fissible\Phone\Models\PhoneThread;
 use Fissible\Phone\Twilio\TwilioInboundSmsPayload;
+use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\ContactLookup;
 
 class SmsThreadResolver
@@ -42,13 +43,21 @@ class SmsThreadResolver
         ));
 
         if ($contact->isResolved()) {
-            $thread->forceFill([
-                'metadata' => array_replace($thread->metadata ?? [], [
-                    'contact' => $contact->toArray(),
-                ]),
-            ])->save();
+            $this->applyContact($thread, $contact);
         }
 
         return $thread->refresh();
+    }
+
+    private function applyContact(PhoneThread $thread, ContactIdentity $contact): void
+    {
+        $thread->forceFill([
+            'remote_display_name' => $contact->displayName,
+            'contact_type' => $contact->externalType,
+            'contact_id' => $contact->externalId,
+            'metadata' => array_replace($thread->metadata ?? [], [
+                'contact' => $contact->toArray(),
+            ]),
+        ])->save();
     }
 }

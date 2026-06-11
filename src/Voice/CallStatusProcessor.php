@@ -117,7 +117,7 @@ class CallStatusProcessor
             direction: 'inbound',
             phoneNumber: $call->phoneNumber()->first(),
             call: $call,
-            contact: ContactIdentity::anonymous($call->from_number ?? 'Unknown'),
+            contact: $this->contactFromCall($call),
             webhookReceipt: $receipt,
             metadata: [
                 'provider_call_sid' => $call->provider_call_sid,
@@ -125,6 +125,17 @@ class CallStatusProcessor
                 'source' => $source,
             ],
         ));
+    }
+
+    private function contactFromCall(PhoneCall $call): ContactIdentity
+    {
+        $contact = $call->metadata['contact'] ?? null;
+
+        if (is_array($contact)) {
+            return ContactIdentity::fromArray($contact);
+        }
+
+        return ContactIdentity::anonymous($call->from_number ?? 'Unknown');
     }
 
     private function resolveCall(Request $request, TwilioCallStatusPayload $payload): ?PhoneCall

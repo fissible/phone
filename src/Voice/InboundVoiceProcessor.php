@@ -9,6 +9,7 @@ use Fissible\Phone\Contracts\CallRouter;
 use Fissible\Phone\Contracts\PhoneNumberResolver;
 use Fissible\Phone\Events\CallRouteDecided;
 use Fissible\Phone\Events\InboundCallReceived;
+use Fissible\Phone\Jobs\ResolveInboundCallContact;
 use Fissible\Phone\Models\PhoneCall;
 use Fissible\Phone\Models\PhoneNumber;
 use Fissible\Phone\Models\WebhookReceipt;
@@ -20,6 +21,7 @@ use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\InboundVoiceResult;
 use Fissible\Phone\ValueObjects\PhoneActivity;
 use Fissible\Phone\ValueObjects\RouteDecision;
+use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +33,7 @@ class InboundVoiceProcessor
         private readonly CallRouter $router,
         private readonly TwilioVoiceTwiMLBuilder $twiml,
         private readonly ActivityLogger $activity,
+        private readonly BusDispatcher $bus,
         private readonly Dispatcher $events,
     ) {}
 
@@ -103,6 +106,10 @@ class InboundVoiceProcessor
                     'provider_call_sid' => $call->provider_call_sid,
                 ],
             ));
+
+            $this->bus->dispatchAfterResponse(
+                new ResolveInboundCallContact((int) $call->getKey(), (int) $phoneNumber->getKey())
+            );
         }
 
         if ($decisionCreated) {

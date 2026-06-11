@@ -82,6 +82,37 @@ it('can queue outbound sms without immediately sending when the bus is faked', f
     Bus::assertDispatched(SendOutboundMessage::class, fn (SendOutboundMessage $job): bool => $job->messageId === $message->id);
 });
 
+it('stores outbound contact attribution on messages and threads', function (): void {
+    $fake = Phone::fake();
+
+    $message = Phone::messages()
+        ->to('+16615551212')
+        ->body("We're on for this morning.")
+        ->contact(
+            type: 'lead',
+            id: 123,
+            name: 'Sam Lead',
+            url: 'https://example.com/leads/123',
+            metadata: ['source' => 'mesabit'],
+        )
+        ->send();
+
+    $thread = PhoneThread::query()->sole();
+
+    expect($message->metadata['contact']['display_name'])->toBe('Sam Lead')
+        ->and($message->metadata['contact']['external_type'])->toBe('lead')
+        ->and($message->metadata['contact']['external_id'])->toBe('123')
+        ->and($message->metadata['contact']['url'])->toBe('https://example.com/leads/123')
+        ->and($message->metadata['contact']['metadata']['source'])->toBe('mesabit')
+        ->and($thread->remote_display_name)->toBe('Sam Lead')
+        ->and($thread->contact_type)->toBe('lead')
+        ->and($thread->contact_id)->toBe('123')
+        ->and($thread->metadata['contact']['display_name'])->toBe('Sam Lead')
+        ->and($fake->messages())->toHaveCount(1)
+        ->and($fake->messages()[0]->contact?->externalType)->toBe('lead')
+        ->and($fake->messages()[0]->contact?->externalId)->toBe('123');
+});
+
 it('can send through a messaging service without a known from number', function (): void {
     config()->set('phone.twilio.default_from', null);
     config()->set('phone.twilio.messaging_service_sid', 'MG'.str_repeat('1', 32));

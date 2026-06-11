@@ -102,13 +102,24 @@ class RecordingProcessor
             call: $call,
             recording: $recording,
             voicemail: $voicemail,
-            contact: ContactIdentity::anonymous($voicemail->from_number ?? $call?->from_number ?? 'Unknown'),
+            contact: $this->contactFromCall($call, $voicemail->from_number),
             webhookReceipt: $receipt,
             metadata: [
                 'provider_call_sid' => $recording->provider_call_sid,
                 'provider_recording_sid' => $recording->provider_recording_sid,
             ],
         ));
+    }
+
+    private function contactFromCall(?PhoneCall $call, ?string $fallbackNumber): ContactIdentity
+    {
+        $contact = $call?->metadata['contact'] ?? null;
+
+        if (is_array($contact)) {
+            return ContactIdentity::fromArray($contact);
+        }
+
+        return ContactIdentity::anonymous($fallbackNumber ?? $call?->from_number ?? 'Unknown');
     }
 
     private function resolveCall(Request $request, TwilioRecordingPayload $payload): ?PhoneCall

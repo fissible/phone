@@ -10,9 +10,12 @@ integrations.
 
 ## Planning
 
+- [Installation](docs/INSTALLATION.md)
 - [Scope](docs/SCOPE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [V1 Design](docs/V1_DESIGN.md)
+- [Release Policy](docs/RELEASE.md)
+- [Changelog](CHANGELOG.md)
 
 ## Goals
 
@@ -60,6 +63,7 @@ use Fissible\Phone\Facades\Phone;
 Phone::messages()
     ->to('+16615551212')
     ->body("We're on for this morning.")
+    ->contact(type: 'lead', id: 123, name: 'Sam Lead')
     ->allowUnknownRecipient()
     ->send();
 ```
@@ -114,6 +118,12 @@ PHONE_SMS_ALLOW_UNKNOWN_RECIPIENTS=true
 
 Existing threads with `opted_out_at` set are always blocked by the default
 message policy.
+
+Outbound sends can carry a resolved contact reference using `contact()` or
+`contactIdentity()`. Contact attribution is stored on
+`phone_messages.metadata.contact`; when a thread exists, it is also stored on
+`phone_threads.metadata.contact` and mirrored into the thread's
+`remote_display_name`, `contact_type`, and `contact_id` columns.
 
 When a Twilio status callback reaches `POST /phone/twilio/sms/status`, the
 package looks up the outbound `phone_messages` row by provider SID and applies a
@@ -201,6 +211,12 @@ Forwarded calls include a dial action callback to
 default router returns simple voicemail TwiML with a recording status callback
 tagged as `purpose=voicemail`. Host apps can replace routing by binding
 `Fissible\Phone\Contracts\CallRouter`.
+
+Inbound voice contact lookup is deferred. The voice webhook stores the call and
+queues `Fissible\Phone\Jobs\ResolveInboundCallContact` after the response so a
+slow CRM lookup cannot delay TwiML. Resolved contacts are stored under
+`phone_calls.metadata.contact`; resolver failures are captured under
+`phone_calls.metadata.contact_resolution`.
 
 Business-hours routing is built into the default forward mode. If no weekly
 hours are configured, numbers are treated as always open. Once weekly hours are
