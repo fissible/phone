@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Voice;
 
+use Fissible\Phone\Contracts\ActivityLogger;
 use Fissible\Phone\Contracts\CallRouter;
 use Fissible\Phone\Contracts\PhoneNumberResolver;
 use Fissible\Phone\Events\CallRouteDecided;
@@ -15,7 +16,9 @@ use Fissible\Phone\Support\CallStatus;
 use Fissible\Phone\Twilio\TwilioInboundVoicePayload;
 use Fissible\Phone\Twilio\TwilioVoiceTwiMLBuilder;
 use Fissible\Phone\ValueObjects\CallContext;
+use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\InboundVoiceResult;
+use Fissible\Phone\ValueObjects\PhoneActivity;
 use Fissible\Phone\ValueObjects\RouteDecision;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
@@ -27,6 +30,7 @@ class InboundVoiceProcessor
         private readonly PhoneNumberResolver $phoneNumbers,
         private readonly CallRouter $router,
         private readonly TwilioVoiceTwiMLBuilder $twiml,
+        private readonly ActivityLogger $activity,
         private readonly Dispatcher $events,
     ) {}
 
@@ -86,6 +90,19 @@ class InboundVoiceProcessor
 
         if ($created) {
             $this->events->dispatch(new InboundCallReceived($call, $phoneNumber, $receipt));
+            $this->activity->log(new PhoneActivity(
+                type: 'voice.inbound',
+                channel: 'voice',
+                direction: 'inbound',
+                occurredAt: $call->started_at ?? now(),
+                phoneNumber: $phoneNumber,
+                call: $call,
+                contact: ContactIdentity::anonymous($call->from_number),
+                webhookReceipt: $receipt,
+                metadata: [
+                    'provider_call_sid' => $call->provider_call_sid,
+                ],
+            ));
         }
 
         if ($decisionCreated) {

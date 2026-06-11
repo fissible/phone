@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Phone\Sms;
 
 use DateTimeInterface;
+use Fissible\Phone\Contracts\ActivityLogger;
 use Fissible\Phone\Contracts\OptOutPolicy;
 use Fissible\Phone\Contracts\PhoneNumberResolver;
 use Fissible\Phone\Events\InboundMessageReceived;
@@ -15,7 +16,9 @@ use Fissible\Phone\Models\PhoneThread;
 use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Services\SmsThreadResolver;
 use Fissible\Phone\Twilio\TwilioInboundSmsPayload;
+use Fissible\Phone\ValueObjects\ContactIdentity;
 use Fissible\Phone\ValueObjects\OptOutResult;
+use Fissible\Phone\ValueObjects\PhoneActivity;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +29,7 @@ class InboundSmsProcessor
         private readonly PhoneNumberResolver $phoneNumbers,
         private readonly SmsThreadResolver $threads,
         private readonly OptOutPolicy $optOutPolicy,
+        private readonly ActivityLogger $activity,
         private readonly Dispatcher $events,
     ) {}
 
@@ -93,9 +97,35 @@ class InboundSmsProcessor
                 phoneNumber: $phoneNumber,
                 webhookReceipt: $receipt,
             ));
+
+            $this->activity->log(new PhoneActivity(
+                type: 'sms.inbound',
+                channel: 'sms',
+                direction: 'inbound',
+                occurredAt: $message->received_at ?? now(),
+                phoneNumber: $phoneNumber,
+                thread: $thread,
+                message: $message,
+                contact: $this->contactFromThread($thread, $message->from_number),
+                webhookReceipt: $receipt,
+                metadata: [
+                    'provider_message_sid' => $message->provider_message_sid,
+                ],
+            ));
         }
 
         return $message;
+    }
+
+    private function contactFromThread(PhoneThread $thread, ?string $remoteNumber): ContactIdentity
+    {
+        $contact = $thread->metadata['contact'] ?? null;
+
+        if (is_array($contact)) {
+            return ContactIdentity::fromArray($contact);
+        }
+
+        return ContactIdentity::anonymous($remoteNumber ?? $thread->remote_number);
     }
 
     private function dispatchOptOutEvent(?OptOutResult $result, PhoneThread $thread, PhoneMessage $message): void

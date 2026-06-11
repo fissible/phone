@@ -181,6 +181,12 @@ Inbound STOP-style keywords set `phone_threads.opted_out_at`; START-style
 keywords clear it. The default keyword lists are US SMS-oriented and can be
 replaced by binding your own `Fissible\Phone\Contracts\OptOutPolicy`.
 
+Host apps can enrich SMS threads by binding
+`Fissible\Phone\Contracts\ContactResolver`. The resolver receives a lightweight
+`ContactLookup` and returns a `ContactIdentity`; resolved identities are stored
+under `phone_threads.metadata.contact`. The package does not create or own
+contact records.
+
 Inbound voice now creates a `phone_calls` record and returns TwiML from the
 configured router. The default router uses the matched `phone_numbers` row when
 it has `routing_mode=forward` and `forward_to` set, otherwise it falls back to
@@ -255,6 +261,16 @@ php artisan phone:doctor
 The command checks Twilio credentials, sender configuration, webhook base URL,
 stateless webhook middleware, and default voice routing. Add `--live` to make a
 single Twilio API request and verify that the configured credentials work.
+
+### Activity Logging
+
+Bind `Fissible\Phone\Contracts\ActivityLogger` to mirror package events into a
+CRM, audit log, or host app activity stream. The default logger is a no-op.
+
+The package currently logs structured activity entries for inbound SMS and
+inbound voice after local persistence. Keep custom loggers fast in webhook
+requests; for slow CRM work, prefer Laravel event listeners or queued jobs using
+the persisted package events.
 
 ## Early Milestones
 
