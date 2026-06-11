@@ -41,4 +41,14 @@ class PhoneNumber extends Model
     {
         return $this->hasMany(PhoneCall::class, 'phone_number_id');
     }
+
+    public function recordings(): HasMany
+    {
+        return $this->hasMany(PhoneRecording::class, 'phone_number_id');
+    }
+
+    public function voicemails(): HasMany
+    {
+        return $this->hasMany(PhoneVoicemail::class, 'phone_number_id');
+    }
 }

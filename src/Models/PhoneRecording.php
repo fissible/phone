@@ -6,11 +6,11 @@ namespace Fissible\Phone\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class PhoneCall extends Model
+class PhoneRecording extends Model
 {
-    protected $table = 'phone_calls';
+    protected $table = 'phone_recordings';
 
     /** @var list<string> */
     protected $guarded = [];
@@ -19,15 +19,16 @@ class PhoneCall extends Model
     protected function casts(): array
     {
         return [
-            'provider_sequence_number' => 'integer',
             'status_rank' => 'integer',
-            'route_decision' => 'array',
             'duration_seconds' => 'integer',
-            'started_at' => 'datetime',
-            'answered_at' => 'datetime',
-            'ended_at' => 'datetime',
+            'channels' => 'integer',
             'metadata' => 'array',
         ];
+    }
+
+    public function call(): BelongsTo
+    {
+        return $this->belongsTo(PhoneCall::class, 'phone_call_id');
     }
 
     public function phoneNumber(): BelongsTo
@@ -40,13 +41,8 @@ class PhoneCall extends Model
         return $this->belongsTo(WebhookReceipt::class, 'webhook_receipt_id');
     }
 
-    public function recordings(): HasMany
+    public function voicemail(): HasOne
     {
-        return $this->hasMany(PhoneRecording::class, 'phone_call_id');
-    }
-
-    public function voicemails(): HasMany
-    {
-        return $this->hasMany(PhoneVoicemail::class, 'phone_call_id');
+        return $this->hasOne(PhoneVoicemail::class, 'phone_recording_id');
     }
 }

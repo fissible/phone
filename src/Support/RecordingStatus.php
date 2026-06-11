@@ -4,36 +4,25 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Support;
 
-final class CallStatus
+final class RecordingStatus
 {
-    public const INITIATED = 'initiated';
-
-    public const RINGING = 'ringing';
-
     public const IN_PROGRESS = 'in_progress';
+
+    public const PROCESSING = 'processing';
 
     public const COMPLETED = 'completed';
 
-    public const BUSY = 'busy';
+    public const ABSENT = 'absent';
 
     public const FAILED = 'failed';
 
-    public const NO_ANSWER = 'no_answer';
-
-    public const CANCELED = 'canceled';
-
-    public const MISSED = 'missed';
-
+    /** @var array<string, int> */
     private const RANKS = [
-        self::INITIATED => 1,
-        self::RINGING => 2,
-        self::IN_PROGRESS => 3,
-        self::COMPLETED => 4,
-        self::BUSY => 4,
-        self::FAILED => 4,
-        self::NO_ANSWER => 4,
-        self::CANCELED => 4,
-        self::MISSED => 4,
+        self::IN_PROGRESS => 1,
+        self::PROCESSING => 2,
+        self::COMPLETED => 3,
+        self::ABSENT => 3,
+        self::FAILED => 3,
     ];
 
     public static function rank(string $status): int
@@ -46,11 +35,8 @@ final class CallStatus
     {
         return [
             self::COMPLETED,
-            self::BUSY,
+            self::ABSENT,
             self::FAILED,
-            self::NO_ANSWER,
-            self::CANCELED,
-            self::MISSED,
         ];
     }
 

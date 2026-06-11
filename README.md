@@ -193,8 +193,20 @@ PHONE_FORWARD_TO=+16615559999
 Forwarded calls include a dial action callback to
 `/phone/twilio/voice/dial-status`. If no forward destination is configured, the
 default router returns simple voicemail TwiML with a recording status callback
-tagged as `purpose=voicemail`; recording persistence lands in a later milestone.
-Host apps can replace routing by binding `Fissible\Phone\Contracts\CallRouter`.
+tagged as `purpose=voicemail`. Host apps can replace routing by binding
+`Fissible\Phone\Contracts\CallRouter`.
+
+When Twilio reaches `POST /phone/twilio/voice/status` or the `<Dial>` action
+callback at `POST /phone/twilio/voice/dial-status`, the package updates the
+matching `phone_calls` row with the same deterministic progression used for SMS:
+lower-rank callbacks are ignored and terminal call states do not regress. Dial
+action callbacks return an empty TwiML `<Response/>` after persistence so Twilio
+gets a valid voice response.
+
+Recording callbacks create `phone_recordings`. A recording only creates a
+`phone_voicemails` row when the callback is tagged with `purpose=voicemail`, so
+future QA/compliance recordings can share the same recording table without being
+treated as customer voicemails.
 
 ## Early Milestones
 

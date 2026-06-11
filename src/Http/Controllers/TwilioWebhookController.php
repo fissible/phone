@@ -8,7 +8,9 @@ use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Services\WebhookReceiptRecorder;
 use Fissible\Phone\Sms\InboundSmsProcessor;
 use Fissible\Phone\Sms\MessageStatusProcessor;
+use Fissible\Phone\Voice\CallStatusProcessor;
 use Fissible\Phone\Voice\InboundVoiceProcessor;
+use Fissible\Phone\Voice\RecordingProcessor;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -59,19 +61,48 @@ class TwilioWebhookController
         }
     }
 
-    public function dialStatus(Request $request, WebhookReceiptRecorder $receipts): Response
+    public function dialStatus(Request $request, WebhookReceiptRecorder $receipts, CallStatusProcessor $processor): Response
     {
-        return $this->acknowledge($request, $receipts);
+        try {
+            $processor->processTwilioDialStatus($request, $this->receipt($request));
+            $receipts->markProcessed($this->receipt($request));
+
+            return response($this->emptyTwiml(), Response::HTTP_OK, [
+                'Content-Type' => 'text/xml',
+            ]);
+        } catch (Throwable $exception) {
+            $receipts->markFailed($this->receipt($request), $exception);
+
+            throw $exception;
+        }
     }
 
-    public function voiceStatus(Request $request, WebhookReceiptRecorder $receipts): Response
+    public function voiceStatus(Request $request, WebhookReceiptRecorder $receipts, CallStatusProcessor $processor): Response
     {
-        return $this->acknowledge($request, $receipts);
+        try {
+            $processor->processTwilioStatus($request, $this->receipt($request));
+            $receipts->markProcessed($this->receipt($request));
+
+            return response()->noContent();
+        } catch (Throwable $exception) {
+            $receipts->markFailed($this->receipt($request), $exception);
+
+            throw $exception;
+        }
     }
 
-    public function recording(Request $request, WebhookReceiptRecorder $receipts): Response
+    public function recording(Request $request, WebhookReceiptRecorder $receipts, RecordingProcessor $processor): Response
     {
-        return $this->acknowledge($request, $receipts);
+        try {
+            $processor->processTwilio($request, $this->receipt($request));
+            $receipts->markProcessed($this->receipt($request));
+
+            return response()->noContent();
+        } catch (Throwable $exception) {
+            $receipts->markFailed($this->receipt($request), $exception);
+
+            throw $exception;
+        }
     }
 
     public function transcription(Request $request, WebhookReceiptRecorder $receipts): Response
@@ -95,6 +126,11 @@ class TwilioWebhookController
 
             throw $exception;
         }
+    }
+
+    private function emptyTwiml(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?><Response/>';
     }
 
     private function receipt(Request $request): ?WebhookReceipt

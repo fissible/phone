@@ -125,7 +125,9 @@ class WebhookReceiptRecorder
     private function providerSid(Request $request, string $eventType): ?string
     {
         $keys = match ($eventType) {
+            'voice.dial_status' => ['CallSid', 'DialCallSid'],
             'voice.recording' => ['RecordingSid', 'CallSid'],
+            'voice.status' => ['CallSid'],
             'voice.transcription' => ['TranscriptionSid', 'RecordingSid', 'CallSid'],
             'sms.inbound', 'sms.status' => ['MessageSid', 'SmsSid'],
             default => ['CallSid', 'MessageSid', 'SmsSid', 'RecordingSid', 'TranscriptionSid'],
