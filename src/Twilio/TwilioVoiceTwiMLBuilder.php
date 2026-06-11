@@ -61,6 +61,14 @@ class TwilioVoiceTwiMLBuilder
             $attributes['recordingStatusCallbackMethod'] = 'POST';
         }
 
+        if ($decision->transcribe) {
+            $attributes['transcribe'] = true;
+
+            if ($decision->transcriptionCallbackUrl !== null) {
+                $attributes['transcribeCallback'] = $decision->transcriptionCallbackUrl;
+            }
+        }
+
         $response->record($attributes);
     }
 }

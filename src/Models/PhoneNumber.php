@@ -51,4 +51,9 @@ class PhoneNumber extends Model
     {
         return $this->hasMany(PhoneVoicemail::class, 'phone_number_id');
     }
+
+    public function transcriptions(): HasMany
+    {
+        return $this->hasMany(PhoneTranscription::class, 'phone_number_id');
+    }
 }

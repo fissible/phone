@@ -6,11 +6,10 @@ namespace Fissible\Phone\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PhoneVoicemail extends Model
+class PhoneTranscription extends Model
 {
-    protected $table = 'phone_voicemails';
+    protected $table = 'phone_transcriptions';
 
     /** @var list<string> */
     protected $guarded = [];
@@ -19,9 +18,7 @@ class PhoneVoicemail extends Model
     protected function casts(): array
     {
         return [
-            'duration_seconds' => 'integer',
-            'received_at' => 'datetime',
-            'listened_at' => 'datetime',
+            'status_rank' => 'integer',
             'metadata' => 'array',
         ];
     }
@@ -36,6 +33,11 @@ class PhoneVoicemail extends Model
         return $this->belongsTo(PhoneRecording::class, 'phone_recording_id');
     }
 
+    public function voicemail(): BelongsTo
+    {
+        return $this->belongsTo(PhoneVoicemail::class, 'phone_voicemail_id');
+    }
+
     public function phoneNumber(): BelongsTo
     {
         return $this->belongsTo(PhoneNumber::class, 'phone_number_id');
@@ -44,10 +46,5 @@ class PhoneVoicemail extends Model
     public function webhookReceipt(): BelongsTo
     {
         return $this->belongsTo(WebhookReceipt::class, 'webhook_receipt_id');
-    }
-
-    public function transcriptions(): HasMany
-    {
-        return $this->hasMany(PhoneTranscription::class, 'phone_voicemail_id');
     }
 }

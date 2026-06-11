@@ -21,6 +21,8 @@ final readonly class RouteDecision
         public int $timeout = 20,
         public ?string $actionUrl = null,
         public ?string $recordingStatusCallbackUrl = null,
+        public bool $transcribe = false,
+        public ?string $transcriptionCallbackUrl = null,
         public ?string $greeting = null,
         public array $metadata = [],
     ) {}
@@ -35,11 +37,17 @@ final readonly class RouteDecision
         );
     }
 
-    public static function voicemail(?string $greeting = null, ?string $recordingStatusCallbackUrl = null): self
-    {
+    public static function voicemail(
+        ?string $greeting = null,
+        ?string $recordingStatusCallbackUrl = null,
+        bool $transcribe = false,
+        ?string $transcriptionCallbackUrl = null,
+    ): self {
         return new self(
             type: self::VOICEMAIL,
             recordingStatusCallbackUrl: $recordingStatusCallbackUrl,
+            transcribe: $transcribe,
+            transcriptionCallbackUrl: $transcriptionCallbackUrl,
             greeting: $greeting,
         );
     }
@@ -69,6 +77,8 @@ final readonly class RouteDecision
 
         if ($this->type === self::VOICEMAIL) {
             $values['recording_status_callback_url'] = $this->recordingStatusCallbackUrl;
+            $values['transcribe'] = $this->transcribe;
+            $values['transcription_callback_url'] = $this->transcriptionCallbackUrl;
             $values['greeting'] = $this->greeting;
         }
 
@@ -89,6 +99,10 @@ final readonly class RouteDecision
             actionUrl: is_string($values['action_url'] ?? null) ? $values['action_url'] : null,
             recordingStatusCallbackUrl: is_string($values['recording_status_callback_url'] ?? null)
                 ? $values['recording_status_callback_url']
+                : null,
+            transcribe: (bool) ($values['transcribe'] ?? false),
+            transcriptionCallbackUrl: is_string($values['transcription_callback_url'] ?? null)
+                ? $values['transcription_callback_url']
                 : null,
             greeting: is_string($values['greeting'] ?? null) ? $values['greeting'] : null,
             metadata: is_array($values['metadata'] ?? null) ? $values['metadata'] : [],

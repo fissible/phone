@@ -49,4 +49,9 @@ class PhoneCall extends Model
     {
         return $this->hasMany(PhoneVoicemail::class, 'phone_call_id');
     }
+
+    public function transcriptions(): HasMany
+    {
+        return $this->hasMany(PhoneTranscription::class, 'phone_call_id');
+    }
 }

@@ -6,6 +6,7 @@ namespace Fissible\Phone\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PhoneRecording extends Model
@@ -44,5 +45,10 @@ class PhoneRecording extends Model
     public function voicemail(): HasOne
     {
         return $this->hasOne(PhoneVoicemail::class, 'phone_recording_id');
+    }
+
+    public function transcriptions(): HasMany
+    {
+        return $this->hasMany(PhoneTranscription::class, 'phone_recording_id');
     }
 }

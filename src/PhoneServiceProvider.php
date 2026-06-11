@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone;
 
+use Fissible\Phone\Console\Commands\PhoneDoctorCommand;
 use Fissible\Phone\Contracts\CallRouter;
 use Fissible\Phone\Contracts\MessagePolicy;
 use Fissible\Phone\Contracts\OptOutPolicy;
@@ -64,6 +65,10 @@ class PhoneServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__.'/../routes/twilio.php');
 
         if ($this->app->runningInConsole()) {
+            $this->commands([
+                PhoneDoctorCommand::class,
+            ]);
+
             $this->publishes([
                 __DIR__.'/../config/phone.php' => config_path('phone.php'),
             ], 'phone-config');

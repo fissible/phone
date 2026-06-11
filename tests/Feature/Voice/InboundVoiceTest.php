@@ -121,6 +121,26 @@ it('falls back to voicemail twiml when no forward destination is configured', fu
         ->and($call->route_decision['type'])->toBe('voicemail');
 });
 
+it('can opt into twilio voicemail transcription callbacks', function (): void {
+    config()->set('phone.default_voice.forward_to', null);
+    config()->set('phone.default_voice.transcribe_voicemails', true);
+
+    $response = $this->post('/phone/twilio/voice/inbound', inboundVoicePayload([
+        'CallSid' => 'CA'.str_repeat('5', 32),
+    ]));
+
+    $response->assertOk();
+
+    $xml = voiceXml($response->getContent());
+    $record = $xml->Record;
+    $call = PhoneCall::query()->sole();
+
+    expect((string) $record['transcribe'])->toBe('true')
+        ->and((string) $record['transcribeCallback'])->toBe('https://example.com/phone/twilio/voice/transcription?call_id='.$call->id.'&purpose=voicemail')
+        ->and($call->route_decision['transcribe'])->toBeTrue()
+        ->and($call->route_decision['transcription_callback_url'])->toBe('https://example.com/phone/twilio/voice/transcription?call_id='.$call->id.'&purpose=voicemail');
+});
+
 it('does not duplicate calls or events when twilio retries the same inbound voice webhook', function (): void {
     Event::fake([
         InboundCallReceived::class,

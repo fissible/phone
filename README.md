@@ -208,6 +208,29 @@ Recording callbacks create `phone_recordings`. A recording only creates a
 future QA/compliance recordings can share the same recording table without being
 treated as customer voicemails.
 
+Voicemail transcription is opt-in:
+
+```env
+PHONE_TRANSCRIBE_VOICEMAILS=true
+```
+
+When enabled, voicemail TwiML includes a Twilio `transcribeCallback` pointing at
+`POST /phone/twilio/voice/transcription`. Transcription callbacks create
+`phone_transcriptions`; completed voicemail transcriptions also update the
+matching `phone_voicemails.transcription_text`.
+
+### Diagnostics
+
+Run a local configuration check with:
+
+```bash
+php artisan phone:doctor
+```
+
+The command checks Twilio credentials, sender configuration, webhook base URL,
+stateless webhook middleware, and default voice routing. Add `--live` to make a
+single Twilio API request and verify that the configured credentials work.
+
 ## Early Milestones
 
 1. Twilio credentials, config, and webhook signature validation.

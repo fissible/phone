@@ -11,6 +11,7 @@ use Fissible\Phone\Sms\MessageStatusProcessor;
 use Fissible\Phone\Voice\CallStatusProcessor;
 use Fissible\Phone\Voice\InboundVoiceProcessor;
 use Fissible\Phone\Voice\RecordingProcessor;
+use Fissible\Phone\Voice\TranscriptionProcessor;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -105,9 +106,18 @@ class TwilioWebhookController
         }
     }
 
-    public function transcription(Request $request, WebhookReceiptRecorder $receipts): Response
+    public function transcription(Request $request, WebhookReceiptRecorder $receipts, TranscriptionProcessor $processor): Response
     {
-        return $this->acknowledge($request, $receipts);
+        try {
+            $processor->processTwilio($request, $this->receipt($request));
+            $receipts->markProcessed($this->receipt($request));
+
+            return response()->noContent();
+        } catch (Throwable $exception) {
+            $receipts->markFailed($this->receipt($request), $exception);
+
+            throw $exception;
+        }
     }
 
     public function aiStatus(Request $request, WebhookReceiptRecorder $receipts): Response

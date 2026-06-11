@@ -59,6 +59,11 @@ class DefaultCallRouter implements CallRouter
                 'call_id' => (string) $call->call->getKey(),
                 'purpose' => 'voicemail',
             ]),
+            transcribe: (bool) $this->config->get('phone.default_voice.transcribe_voicemails', false),
+            transcriptionCallbackUrl: $this->callbackUrl('twilio/voice/transcription', [
+                'call_id' => (string) $call->call->getKey(),
+                'purpose' => 'voicemail',
+            ]),
         );
     }
 

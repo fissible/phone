@@ -30,6 +30,7 @@ return [
         'timeout' => 20,
         'after_hours_mode' => 'voicemail',
         'voicemail_greeting' => env('PHONE_VOICEMAIL_GREETING', 'Please leave a message after the tone.'),
+        'transcribe_voicemails' => env('PHONE_TRANSCRIBE_VOICEMAILS', false),
     ],
 
     'business_hours' => [
