@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Fissible\Phone;
 
 use Fissible\Phone\Console\Commands\PhoneDoctorCommand;
+use Fissible\Phone\Console\Commands\PhoneInstallCommand;
+use Fissible\Phone\Console\Commands\PhonePruneCommand;
+use Fissible\Phone\Console\Commands\PhoneWebhookReplayCommand;
 use Fissible\Phone\Contracts\ActivityLogger;
 use Fissible\Phone\Contracts\AiSessionHandler;
 use Fissible\Phone\Contracts\CallRouter;
@@ -79,6 +82,9 @@ class PhoneServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 PhoneDoctorCommand::class,
+                PhoneInstallCommand::class,
+                PhonePruneCommand::class,
+                PhoneWebhookReplayCommand::class,
             ]);
 
             $this->publishes([
