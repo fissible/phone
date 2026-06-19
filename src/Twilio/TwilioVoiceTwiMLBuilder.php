@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Twilio;
 
+use Fissible\Phone\ValueObjects\ConversationRelayConfig;
 use Fissible\Phone\ValueObjects\RouteDecision;
 use Twilio\TwiML\VoiceResponse;
 
@@ -16,6 +17,7 @@ class TwilioVoiceTwiMLBuilder
         match ($decision->type) {
             RouteDecision::FORWARD => $this->forward($response, $decision),
             RouteDecision::VOICEMAIL => $this->voicemail($response, $decision),
+            RouteDecision::AI => $this->ai($response, $decision),
             RouteDecision::REJECT => $response->reject(),
             default => $response->hangup(),
         };
@@ -70,5 +72,42 @@ class TwilioVoiceTwiMLBuilder
         }
 
         $response->record($attributes);
+    }
+
+    private function ai(VoiceResponse $response, RouteDecision $decision): void
+    {
+        $config = $decision->conversationRelay;
+
+        if (! $config instanceof ConversationRelayConfig || $config->websocketUrl === '') {
+            $response->hangup();
+
+            return;
+        }
+
+        $attributes = ['url' => $config->websocketUrl];
+
+        if ($config->voice !== null) {
+            $attributes['voice'] = $config->voice;
+        }
+
+        if ($config->language !== null) {
+            $attributes['language'] = $config->language;
+        }
+
+        if ($config->welcomeGreeting !== null) {
+            $attributes['welcomeGreeting'] = $config->welcomeGreeting;
+        }
+
+        $attributes['interruptible'] = $config->interruptible;
+
+        foreach ($config->attributes as $name => $value) {
+            $attributes[$name] = $value;
+        }
+
+        $relay = $response->connect()->conversationRelay($attributes);
+
+        foreach ($config->parameters as $name => $value) {
+            $relay->parameter(['name' => (string) $name, 'value' => (string) $value]);
+        }
     }
 }
