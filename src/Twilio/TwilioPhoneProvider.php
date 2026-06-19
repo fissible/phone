@@ -6,7 +6,9 @@ namespace Fissible\Phone\Twilio;
 
 use Fissible\Phone\Contracts\PhoneProvider;
 use Fissible\Phone\Exceptions\PhoneConfigurationException;
+use Fissible\Phone\ValueObjects\OutboundCall;
 use Fissible\Phone\ValueObjects\OutboundMessage;
+use Fissible\Phone\ValueObjects\ProviderCall;
 use Fissible\Phone\ValueObjects\ProviderMessage;
 use Illuminate\Contracts\Config\Repository;
 
@@ -40,6 +42,62 @@ class TwilioPhoneProvider implements PhoneProvider
                 'error_message' => $twilioMessage->errorMessage,
             ],
         );
+    }
+
+    public function createCall(OutboundCall $call): ProviderCall
+    {
+        $from = $call->from ?: $this->config->get('phone.twilio.default_from');
+
+        if (! is_string($from) || $from === '') {
+            throw PhoneConfigurationException::missingSender();
+        }
+
+        $twilioCall = $this->clientFactory
+            ->make()
+            ->calls
+            ->create($call->to, $from, $this->callOptions($call));
+
+        return new ProviderCall(
+            provider: 'twilio',
+            providerCallSid: $twilioCall->sid,
+            status: (string) $twilioCall->status,
+            raw: [
+                'sid' => $twilioCall->sid,
+                'status' => (string) $twilioCall->status,
+                'to' => $twilioCall->to,
+                'from' => $twilioCall->from,
+            ],
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function callOptions(OutboundCall $call): array
+    {
+        $options = [];
+
+        if ($call->twiml !== null && $call->twiml !== '') {
+            $options['twiml'] = $call->twiml;
+        }
+
+        if ($call->url !== null && $call->url !== '') {
+            $options['url'] = $call->url;
+        }
+
+        if ($call->statusCallbackUrl !== null && $call->statusCallbackUrl !== '') {
+            $options['statusCallback'] = $call->statusCallbackUrl;
+            $options['statusCallbackMethod'] = 'POST';
+            $options['statusCallbackEvent'] = ['initiated', 'ringing', 'answered', 'completed'];
+        }
+
+        if ($call->machineDetection !== null && $call->machineDetection !== '') {
+            $options['machineDetection'] = $call->machineDetection;
+        }
+
+        if ($call->timeout !== null) {
+            $options['timeout'] = $call->timeout;
+        }
+
+        return $options;
     }
 
     /** @return array<string, mixed> */

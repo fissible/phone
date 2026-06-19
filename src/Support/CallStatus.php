@@ -6,6 +6,12 @@ namespace Fissible\Phone\Support;
 
 final class CallStatus
 {
+    public const QUEUED = 'queued';
+
+    public const SENDING = 'sending';
+
+    public const SEND_UNKNOWN = 'send_unknown';
+
     public const INITIATED = 'initiated';
 
     public const RINGING = 'ringing';
