@@ -14,6 +14,8 @@ final readonly class RouteDecision
 
     public const HANGUP = 'hangup';
 
+    public const AI = 'ai';
+
     /** @param array<string, mixed> $metadata */
     public function __construct(
         public string $type,
@@ -24,6 +26,7 @@ final readonly class RouteDecision
         public bool $transcribe = false,
         public ?string $transcriptionCallbackUrl = null,
         public ?string $greeting = null,
+        public ?ConversationRelayConfig $conversationRelay = null,
         public array $metadata = [],
     ) {}
 
@@ -62,6 +65,16 @@ final readonly class RouteDecision
         return new self(type: self::HANGUP);
     }
 
+    /** @param array<string, mixed> $metadata */
+    public static function ai(ConversationRelayConfig $conversationRelay, array $metadata = []): self
+    {
+        return new self(
+            type: self::AI,
+            conversationRelay: $conversationRelay,
+            metadata: $metadata,
+        );
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {
@@ -80,6 +93,10 @@ final readonly class RouteDecision
             $values['transcribe'] = $this->transcribe;
             $values['transcription_callback_url'] = $this->transcriptionCallbackUrl;
             $values['greeting'] = $this->greeting;
+        }
+
+        if ($this->type === self::AI && $this->conversationRelay instanceof ConversationRelayConfig) {
+            $values['conversation_relay'] = $this->conversationRelay->toArray();
         }
 
         if ($this->metadata !== []) {
@@ -105,6 +122,9 @@ final readonly class RouteDecision
                 ? $values['transcription_callback_url']
                 : null,
             greeting: is_string($values['greeting'] ?? null) ? $values['greeting'] : null,
+            conversationRelay: is_array($values['conversation_relay'] ?? null)
+                ? ConversationRelayConfig::fromArray($values['conversation_relay'])
+                : null,
             metadata: is_array($values['metadata'] ?? null) ? $values['metadata'] : [],
         );
     }

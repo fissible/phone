@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Services;
 
+use Fissible\Phone\Contracts\AiSessionHandler;
 use Fissible\Phone\Contracts\CallRouter;
 use Fissible\Phone\ValueObjects\CallContext;
 use Fissible\Phone\ValueObjects\RouteDecision;
@@ -14,10 +15,15 @@ class DefaultCallRouter implements CallRouter
     public function __construct(
         private readonly Repository $config,
         private readonly BusinessHours $businessHours,
+        private readonly AiSessionHandler $ai,
     ) {}
 
     public function route(CallContext $call): RouteDecision
     {
+        if ($this->ai->shouldHandle($call)) {
+            return RouteDecision::ai($this->ai->configure($call));
+        }
+
         $mode = $this->string($call->phoneNumber->routing_mode)
             ?: $this->string($this->config->get('phone.default_voice.mode'))
             ?: RouteDecision::FORWARD;

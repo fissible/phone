@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Exceptions;
 
+use Fissible\Phone\Contracts\AiSessionHandler;
 use RuntimeException;
 
 class PhoneConfigurationException extends RuntimeException
@@ -21,5 +22,10 @@ class PhoneConfigurationException extends RuntimeException
     public static function unsupportedProvider(string $provider): self
     {
         return new self("Unsupported phone provider [{$provider}].");
+    }
+
+    public static function aiHandoffDisabled(): self
+    {
+        return new self('AI handoff is disabled. Bind '.AiSessionHandler::class.' to a custom handler to enable it.');
     }
 }

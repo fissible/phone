@@ -7,9 +7,11 @@ namespace Fissible\Phone\Voice;
 use Fissible\Phone\Contracts\ActivityLogger;
 use Fissible\Phone\Contracts\CallRouter;
 use Fissible\Phone\Contracts\PhoneNumberResolver;
+use Fissible\Phone\Events\AiSessionStarted;
 use Fissible\Phone\Events\CallRouteDecided;
 use Fissible\Phone\Events\InboundCallReceived;
 use Fissible\Phone\Jobs\ResolveInboundCallContact;
+use Fissible\Phone\Models\PhoneAiSession;
 use Fissible\Phone\Models\PhoneCall;
 use Fissible\Phone\Models\PhoneNumber;
 use Fissible\Phone\Models\WebhookReceipt;
@@ -80,16 +82,24 @@ class InboundVoiceProcessor
 
             $decision = $this->routeDecision($call, $phoneNumber, $payload, $decisionCreated);
 
+            $aiSession = null;
+
+            if ($decisionCreated && $decision->type === RouteDecision::AI) {
+                $aiSession = $this->createAiSession($call, $phoneNumber, $decision);
+            }
+
             return [
                 'call' => $call,
                 'phone_number' => $phoneNumber,
                 'decision' => $decision,
+                'ai_session' => $aiSession,
             ];
         });
 
         $call = $result['call']->refresh();
         $phoneNumber = $result['phone_number'];
         $decision = $result['decision'];
+        $aiSession = $result['ai_session'];
 
         if ($created) {
             $this->events->dispatch(new InboundCallReceived($call, $phoneNumber, $receipt));
@@ -114,6 +124,10 @@ class InboundVoiceProcessor
 
         if ($decisionCreated) {
             $this->events->dispatch(new CallRouteDecided($call, $phoneNumber, $decision));
+        }
+
+        if ($aiSession instanceof PhoneAiSession) {
+            $this->events->dispatch(new AiSessionStarted($aiSession->refresh(), $call, $phoneNumber));
         }
 
         return new InboundVoiceResult(
@@ -143,5 +157,29 @@ class InboundVoiceProcessor
         ])->save();
 
         return $decision;
+    }
+
+    private function createAiSession(
+        PhoneCall $call,
+        PhoneNumber $phoneNumber,
+        RouteDecision $decision,
+    ): PhoneAiSession {
+        $config = $decision->conversationRelay;
+
+        return PhoneAiSession::query()->create([
+            'scope_key' => $phoneNumber->scope_key,
+            'scope_type' => $phoneNumber->scope_type,
+            'scope_id' => $phoneNumber->scope_id,
+            'provider' => 'twilio',
+            'phone_call_id' => $call->getKey(),
+            'mode' => 'conversation_relay',
+            'status' => 'started',
+            'websocket_url' => $config?->websocketUrl,
+            'started_at' => now(),
+            'metadata' => [
+                'handoff_reason' => $decision->metadata['handoff_reason'] ?? null,
+                'conversation_relay' => $config?->toArray(),
+            ],
+        ]);
     }
 }
