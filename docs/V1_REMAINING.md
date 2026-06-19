@@ -88,3 +88,9 @@ E1 (now) → A1, A2, A3 → A4, A5 → A6, A7, A8 → B1, B2, B3 → C1 → D1 �
   then `E` release ladder (tagging requires maintainer action).
 - Decision for `D1`: treat the **shipped** event names as canonical (they are
   tested and real); update `V1_DESIGN.md` to match rather than rename code.
+- 2026-06-19: **Phases C and D complete.** Docs restructured into a guide set
+  (`docs/README.md` index + 12 guides); README points at it. 1.0 surface frozen
+  in `docs/stable-api.md`; `V1_DESIGN.md` event names reconciled. Suite 86
+  passing, validate/pint clean. Cutting **`v1.0.0-rc.1`** (CHANGELOG + VERSION
+  added). Remaining: `E3` RC smoke test against a live Twilio number, then
+  promote to `1.0.0` and submit/refresh on Packagist.
