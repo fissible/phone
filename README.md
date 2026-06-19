@@ -1,21 +1,19 @@
 # Fissible Phone
 
 Fissible Phone is an open-source Laravel package for building Twilio-backed
-business phone workflows: SMS, voice webhooks, call routing, voicemail, and
-eventually AI-assisted answering.
+business phone workflows: SMS, voice webhooks, call routing, voicemail, webhook
+security, and AI-answering handoff. It is UI-free and extendable through
+contracts.
 
-This is a pre-alpha repository. The first goal is to define the package boundary
-and build a small, dependable core before adding UI or application-specific
-integrations.
+## Documentation
 
-## Planning
+Full guides live in **[docs/](docs/README.md)** — installation, Twilio setup,
+configuration, SMS, voice, voicemail, AI handoff, webhook security, console
+commands, testing, compliance, and a production checklist.
 
-- [Installation](docs/INSTALLATION.md)
-- [Scope](docs/SCOPE.md)
-- [Roadmap](docs/ROADMAP.md)
-- [V1 Design](docs/V1_DESIGN.md)
-- [Release Policy](docs/RELEASE.md)
-- [Changelog](CHANGELOG.md)
+Planning/internal docs: [Scope](docs/SCOPE.md) · [Roadmap](docs/ROADMAP.md) ·
+[V1 Design](docs/V1_DESIGN.md) · [Release Policy](docs/RELEASE.md) ·
+[Changelog](CHANGELOG.md)
 
 ## Goals
 

@@ -933,7 +933,11 @@ Default: disabled.
 
 ## Events
 
-V1 should dispatch events after database persistence.
+V1 dispatches events after database persistence. The **shipped, canonical**
+names are below (see `docs/stable-api.md`). Earlier drafts of this section used
+aspirational names (`CallForwarded`, `CallMissed`, `CallCompleted`,
+`RecordingAvailable`, `VoicemailCreated`); those were consolidated into the
+status-update events actually shipped.
 
 SMS:
 
@@ -948,24 +952,18 @@ SMS:
 Voice:
 
 - `InboundCallReceived`
+- `InboundCallContactResolved`
 - `CallRouteDecided`
-- `CallForwarded`
-- `CallMissed`
-- `CallCompleted`
-- `RecordingAvailable`
-- `VoicemailCreated`
+- `CallStatusUpdated` (covers forwarded/missed/completed lifecycle)
+- `RecordingStatusUpdated`
+- `TranscriptionStatusUpdated`
+- `VoicemailReceived`
 
 AI:
 
 - `AiSessionStarted`
 - `AiSessionEnded`
 - `AiSessionFailed`
-
-Operations:
-
-- `WebhookReceiptStored`
-- `WebhookProcessingFailed`
-- `WebhookReplayed`
 
 ## Jobs
 
