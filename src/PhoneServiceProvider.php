@@ -6,6 +6,7 @@ namespace Fissible\Phone;
 
 use Fissible\Phone\Console\Commands\PhoneDoctorCommand;
 use Fissible\Phone\Contracts\ActivityLogger;
+use Fissible\Phone\Contracts\AiSessionHandler;
 use Fissible\Phone\Contracts\CallRouter;
 use Fissible\Phone\Contracts\ContactResolver;
 use Fissible\Phone\Contracts\MessagePolicy;
@@ -22,6 +23,7 @@ use Fissible\Phone\Services\DefaultMessagePolicy;
 use Fissible\Phone\Services\DefaultOptOutPolicy;
 use Fissible\Phone\Services\DefaultPhoneNumberResolver;
 use Fissible\Phone\Services\DefaultScopeResolver;
+use Fissible\Phone\Services\DisabledAiSessionHandler;
 use Fissible\Phone\Services\NullActivityLogger;
 use Fissible\Phone\Services\NullTeamNotifier;
 use Fissible\Phone\Services\WebhookReceiptRecorder;
@@ -49,6 +51,7 @@ class PhoneServiceProvider extends ServiceProvider
         $this->app->bind(TeamNotifier::class, NullTeamNotifier::class);
         $this->app->bind(MessagePolicy::class, DefaultMessagePolicy::class);
         $this->app->bind(OptOutPolicy::class, DefaultOptOutPolicy::class);
+        $this->app->bind(AiSessionHandler::class, DisabledAiSessionHandler::class);
 
         $this->app->bind(PhoneProvider::class, function ($app): PhoneProvider {
             $provider = (string) $app['config']->get('phone.provider', 'twilio');

@@ -8,6 +8,7 @@ use Fissible\Phone\Models\WebhookReceipt;
 use Fissible\Phone\Services\WebhookReceiptRecorder;
 use Fissible\Phone\Sms\InboundSmsProcessor;
 use Fissible\Phone\Sms\MessageStatusProcessor;
+use Fissible\Phone\Voice\AiSessionStatusProcessor;
 use Fissible\Phone\Voice\CallStatusProcessor;
 use Fissible\Phone\Voice\InboundVoiceProcessor;
 use Fissible\Phone\Voice\RecordingProcessor;
@@ -120,14 +121,10 @@ class TwilioWebhookController
         }
     }
 
-    public function aiStatus(Request $request, WebhookReceiptRecorder $receipts): Response
-    {
-        return $this->acknowledge($request, $receipts);
-    }
-
-    private function acknowledge(Request $request, WebhookReceiptRecorder $receipts): Response
+    public function aiStatus(Request $request, WebhookReceiptRecorder $receipts, AiSessionStatusProcessor $processor): Response
     {
         try {
+            $processor->processTwilio($request, $this->receipt($request));
             $receipts->markProcessed($this->receipt($request));
 
             return response()->noContent();
