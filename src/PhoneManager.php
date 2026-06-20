@@ -8,6 +8,7 @@ use Fissible\Phone\Calls\OutboundCallService;
 use Fissible\Phone\Calls\PendingOutboundCall;
 use Fissible\Phone\Contracts\PhoneProvider;
 use Fissible\Phone\Messages\PendingOutboundMessage;
+use Fissible\Phone\Numbers\PhoneNumberLookup;
 use Fissible\Phone\Sms\OutboundMessageService;
 use Fissible\Phone\Testing\FakePhoneProvider;
 use Illuminate\Contracts\Container\Container;
@@ -29,6 +30,11 @@ class PhoneManager
     public function calls(): PendingOutboundCall
     {
         return new PendingOutboundCall($this->container->make(OutboundCallService::class));
+    }
+
+    public function numbers(): PhoneNumberLookup
+    {
+        return $this->container->make(PhoneNumberLookup::class);
     }
 
     public function fake(?FakePhoneProvider $fake = null): FakePhoneProvider
