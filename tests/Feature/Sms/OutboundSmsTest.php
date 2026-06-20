@@ -12,7 +12,9 @@ use Fissible\Phone\Jobs\SendOutboundMessage;
 use Fissible\Phone\Models\PhoneMessage;
 use Fissible\Phone\Models\PhoneNumber;
 use Fissible\Phone\Models\PhoneThread;
+use Fissible\Phone\ValueObjects\OutboundCall;
 use Fissible\Phone\ValueObjects\OutboundMessage;
+use Fissible\Phone\ValueObjects\ProviderCall;
 use Fissible\Phone\ValueObjects\ProviderMessage;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Carbon;
@@ -183,6 +185,11 @@ it('marks unexpected provider failures as send_unknown without throwing', functi
         public function sendMessage(OutboundMessage $message): ProviderMessage
         {
             throw new RuntimeException('provider timeout after possible accept');
+        }
+
+        public function createCall(OutboundCall $call): ProviderCall
+        {
+            throw new RuntimeException('not used');
         }
     });
 

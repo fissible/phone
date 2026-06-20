@@ -71,6 +71,34 @@ not double-notify.
 deterministic progression as SMS: lower-rank and stale callbacks are ignored and
 terminal states never regress. Provider sequence numbers are honored when present.
 
+## Outbound calls (origination)
+
+Originate an operator-initiated call. Provide a caller ID and the TwiML the
+callee hears on answer — inline `twiml` or a `url` that returns TwiML:
+
+```php
+use Fissible\Phone\Facades\Phone;
+
+Phone::calls()
+    ->to('+16615551212')
+    ->callerId('+16615550100')           // or ->from(...)
+    ->twiml('<Response><Say>This is a reminder from Acme.</Say></Response>')
+    ->send();                            // ->queue() to dispatch the send job
+```
+
+Use `->url('https://your-app/twiml')` instead of inline TwiML to serve dynamic
+instructions, `->detectMachine()` for answering-machine detection, and
+`->timeout(30)` to bound ringing.
+
+The call persists as a `direction=outbound` `phone_calls` row. Like outbound SMS,
+the send is **idempotent**: the job claims a `queued` row before calling Twilio
+and an ambiguous provider timeout becomes `send_unknown` rather than a
+double-dial. The status callback URL defaults to `/phone/twilio/voice/status`, so
+the existing call-status handling updates the row through its lifecycle.
+
+Events: `OutboundCallQueued`, `OutboundCallInitiated`, `OutboundCallFailed`.
+
 ## Events
 
-`InboundCallReceived`, `CallRouteDecided`, `CallStatusUpdated`.
+`InboundCallReceived`, `CallRouteDecided`, `CallStatusUpdated`, and the outbound
+events above.
