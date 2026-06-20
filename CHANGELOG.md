@@ -8,6 +8,22 @@ is still being proven by real applications.
 
 ## Unreleased
 
+## v1.0.0-rc.3 - 2026-06-19
+
+### Fixed
+
+- `Phone::numbers()` was documented (including in the frozen 1.0 API) but not
+  implemented, so calling it threw `BadMethodCallException`. Added a
+  `PhoneNumberLookup` (`findByNumber()` with optional scope) and the
+  `PhoneManager::numbers()` method.
+
+### Changed
+
+- Completed the `Phone` facade `@method` docblock (`provider`, `messages`,
+  `calls`, `numbers`, `fake`) so IDEs and larastan resolve the proxied methods.
+- Annotated all `phone_*` Eloquent models with `@property` (columns) and
+  `@property-read` (relationships) docblocks. Documentation-only.
+
 ## v1.0.0-rc.2 - 2026-06-19
 
 ### Added
