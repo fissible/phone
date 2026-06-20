@@ -7,7 +7,36 @@ namespace Fissible\Phone\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property string $scope_key
+ * @property ?string $scope_type
+ * @property ?string $scope_id
+ * @property string $provider
+ * @property ?int $phone_number_id
+ * @property ?int $webhook_receipt_id
+ * @property ?string $provider_call_sid
+ * @property ?string $provider_parent_call_sid
+ * @property ?string $provider_account_sid
+ * @property ?int $provider_sequence_number
+ * @property string $direction
+ * @property string $from_number
+ * @property string $to_number
+ * @property string $status
+ * @property int $status_rank
+ * @property ?string $routing_mode
+ * @property ?array $route_decision
+ * @property ?string $answered_by
+ * @property ?int $duration_seconds
+ * @property ?Carbon $started_at
+ * @property ?Carbon $answered_at
+ * @property ?Carbon $ended_at
+ * @property ?array $metadata
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ */
 class PhoneCall extends Model
 {
     protected $table = 'phone_calls';

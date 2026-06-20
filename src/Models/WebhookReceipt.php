@@ -5,8 +5,30 @@ declare(strict_types=1);
 namespace Fissible\Phone\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Throwable;
 
+/**
+ * @property int $id
+ * @property string $provider
+ * @property string $event_type
+ * @property ?string $provider_sid
+ * @property string $request_method
+ * @property string $request_url
+ * @property string $request_hash
+ * @property ?string $source_ip
+ * @property bool $signature_valid
+ * @property ?array $headers
+ * @property ?array $payload
+ * @property string $processing_status
+ * @property ?Carbon $processed_at
+ * @property ?Carbon $failed_at
+ * @property ?string $error_class
+ * @property ?string $error_message
+ * @property int $replay_count
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ */
 class WebhookReceipt extends Model
 {
     protected $table = 'phone_webhook_receipts';
