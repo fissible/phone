@@ -6,7 +6,34 @@ namespace Fissible\Phone\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property string $scope_key
+ * @property ?string $scope_type
+ * @property ?string $scope_id
+ * @property string $provider
+ * @property ?int $phone_call_id
+ * @property ?int $phone_recording_id
+ * @property ?int $phone_voicemail_id
+ * @property ?int $phone_number_id
+ * @property ?int $webhook_receipt_id
+ * @property ?string $provider_transcription_sid
+ * @property ?string $provider_recording_sid
+ * @property ?string $provider_call_sid
+ * @property ?string $provider_account_sid
+ * @property ?string $purpose
+ * @property string $status
+ * @property int $status_rank
+ * @property ?string $transcription_text
+ * @property ?string $transcription_url
+ * @property ?string $error_code
+ * @property ?string $error_message
+ * @property ?array $metadata
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ */
 class PhoneTranscription extends Model
 {
     protected $table = 'phone_transcriptions';
