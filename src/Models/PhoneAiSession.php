@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property ?array $metadata
  * @property Carbon $created_at
  * @property Carbon $updated_at
+ * @property-read PhoneCall|null $call
  */
 class PhoneAiSession extends Model
 {

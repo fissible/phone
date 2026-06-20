@@ -37,6 +37,9 @@ use Illuminate\Support\Carbon;
  * @property ?array $metadata
  * @property Carbon $created_at
  * @property Carbon $updated_at
+ * @property-read PhoneThread|null $thread
+ * @property-read PhoneNumber|null $phoneNumber
+ * @property-read WebhookReceipt|null $webhookReceipt
  */
 class PhoneMessage extends Model
 {

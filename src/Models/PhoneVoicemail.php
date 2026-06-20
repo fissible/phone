@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Phone\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +31,11 @@ use Illuminate\Support\Carbon;
  * @property ?array $metadata
  * @property Carbon $created_at
  * @property Carbon $updated_at
+ * @property-read PhoneCall|null $call
+ * @property-read PhoneRecording|null $recording
+ * @property-read PhoneNumber|null $phoneNumber
+ * @property-read WebhookReceipt|null $webhookReceipt
+ * @property-read Collection<int, PhoneTranscription> $transcriptions
  */
 class PhoneVoicemail extends Model
 {

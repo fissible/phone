@@ -33,6 +33,11 @@ use Illuminate\Support\Carbon;
  * @property ?array $metadata
  * @property Carbon $created_at
  * @property Carbon $updated_at
+ * @property-read PhoneCall|null $call
+ * @property-read PhoneRecording|null $recording
+ * @property-read PhoneVoicemail|null $voicemail
+ * @property-read PhoneNumber|null $phoneNumber
+ * @property-read WebhookReceipt|null $webhookReceipt
  */
 class PhoneTranscription extends Model
 {
