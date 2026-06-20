@@ -91,6 +91,14 @@ E1 (now) → A1, A2, A3 → A4, A5 → A6, A7, A8 → B1, B2, B3 → C1 → D1 �
 - 2026-06-19: **Phases C and D complete.** Docs restructured into a guide set
   (`docs/README.md` index + 12 guides); README points at it. 1.0 surface frozen
   in `docs/stable-api.md`; `V1_DESIGN.md` event names reconciled. Suite 86
-  passing, validate/pint clean. Cutting **`v1.0.0-rc.1`** (CHANGELOG + VERSION
-  added). Remaining: `E3` RC smoke test against a live Twilio number, then
-  promote to `1.0.0` and submit/refresh on Packagist.
+  passing, validate/pint clean. Cut **`v1.0.0-rc.1`** (CHANGELOG + VERSION).
+- 2026-06-19: **`v1.0.0-rc.2` shipped** — added operator-initiated outbound call
+  origination (`Phone::calls()`, `createCall` on `PhoneProvider`, idempotent
+  `SendOutboundCall` job, `OutboundCall*` events). Suite 94 passing, CI green,
+  GitHub prerelease created.
+- 2026-06-19: **Packagist live** at packagist.org/packages/fissible/phone with
+  rc.1 + rc.2 (`composer require fissible/phone:^1.0@rc`). Webhook auto-publishes
+  future tags.
+- **Only remaining for 1.0.0:** `E3` RC smoke test against a live Twilio number
+  (5 flows + originate one outbound call), then bump VERSION/CHANGELOG to
+  `1.0.0`, tag `v1.0.0`, push.
