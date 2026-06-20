@@ -8,6 +8,17 @@ is still being proven by real applications.
 
 ## Unreleased
 
+## v1.0.0-rc.2 - 2026-06-19
+
+### Added
+
+- Outbound call origination: `Phone::calls()->to()->callerId()->twiml()/url()
+  ->send()/queue()`, backed by an idempotent `SendOutboundCall` job (with
+  `send_unknown` handling), a `createCall` method on the `PhoneProvider`
+  contract (Twilio + fake), and `OutboundCallQueued` / `OutboundCallInitiated` /
+  `OutboundCallFailed` events. Outbound calls persist as `direction=outbound`
+  `phone_calls` rows and are updated by the existing voice status callback.
+
 ## v1.0.0-rc.1 - 2026-06-19
 
 Release candidate for the first stable line. Public surface frozen per

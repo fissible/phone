@@ -13,6 +13,9 @@ releases.
 - `Phone::messages()` → fluent outbound message builder (`to`, `from`, `body`,
   `mediaUrl`, `metadata`, `contact`, `contactIdentity`, `allowUnknownRecipient`,
   `send`, `queue`)
+- `Phone::calls()` → fluent outbound call builder (`to`, `from`/`callerId`,
+  `twiml`, `url`, `statusCallbackUrl`, `detectMachine`, `timeout`, `metadata`,
+  `contact`, `send`, `queue`)
 - `Phone::numbers()` → number lookup
 - `Phone::fake()` → test fake
 
@@ -34,7 +37,8 @@ releases.
 
 **Voice:** `InboundCallReceived`, `InboundCallContactResolved`,
 `CallRouteDecided`, `CallStatusUpdated`, `RecordingStatusUpdated`,
-`TranscriptionStatusUpdated`, `VoicemailReceived`.
+`TranscriptionStatusUpdated`, `VoicemailReceived`, `OutboundCallQueued`,
+`OutboundCallInitiated`, `OutboundCallFailed`.
 
 **AI:** `AiSessionStarted`, `AiSessionEnded`, `AiSessionFailed`.
 
@@ -46,7 +50,8 @@ releases.
 
 `RouteDecision` (incl. `ai()` + `ConversationRelayConfig`), `CallContext`,
 `ContactIdentity`, `ContactLookup`, `OutboundMessage`, `ProviderMessage`,
-`PhoneActivity`, `TeamNotification`, `Scope`, and the status enums under
+`OutboundCall`, `ProviderCall`, `PhoneActivity`, `TeamNotification`, `Scope`,
+and the status enums under
 `Fissible\Phone\Support` (`MessageStatus`, `CallStatus`, `RecordingStatus`,
 `TranscriptionStatus`).
 
